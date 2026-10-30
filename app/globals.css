@@ -1,26 +1,96 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #0b1026;
+  --panel: rgba(15, 23, 52, 0.82);
+  --line: rgba(148, 163, 255, 0.22);
+  --text: #eef2ff;
+  --muted: #a5b0d6;
+  --gold: #fbbf24;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-gold: var(--gold);
+  --font-display: var(--font-display);
+  --font-sans: var(--font-body);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body), system-ui, sans-serif;
+}
+
+/* Game menu buttons, in the style of a console game menu */
+.cw-menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.85rem 1.1rem;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--gold);
+  background: rgba(10, 16, 40, 0.72);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  transition: transform 0.15s, background 0.15s, border-color 0.15s;
+  backdrop-filter: blur(6px);
+}
+.cw-menu-btn:hover:not([aria-disabled="true"]),
+.cw-menu-btn:focus-visible {
+  transform: translateX(6px);
+  background: rgba(30, 41, 90, 0.9);
+  border-color: #fde68a;
+  outline: none;
+}
+.cw-menu-btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-left-color: var(--muted);
+}
+
+/* Name tags above each student in the 3D world */
+.cw-tag {
+  padding: 2px 8px 2px 6px;
+  border-radius: 999px;
+  border-left: 5px solid var(--c, #fff);
+  background: rgba(255, 255, 255, 0.92);
+  color: #111827;
+  font: 800 12px/1.2 var(--font-body), system-ui, sans-serif;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+.cw-planet-small {
+  font-size: 10px !important;
+  color: #cbd5e1 !important;
+}
+.cw-planet {
+  font: 400 13px/1 var(--font-display), system-ui, sans-serif;
+  color: #fde68a;
+  text-shadow: 0 2px 4px #000;
+  white-space: nowrap;
+}
+
+.cw-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  backdrop-filter: blur(8px);
+}
+
+@keyframes cw-toast {
+  0% { transform: translateY(20px) scale(0.9); opacity: 0; }
+  15% { transform: translateY(0) scale(1.05); opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translateY(-10px); opacity: 0; }
+}
+.cw-toast {
+  animation: cw-toast 2.4s ease-out forwards;
 }
