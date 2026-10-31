@@ -254,6 +254,12 @@ export function buildSolarSystem(label: LabelFactory, lowGraphics: boolean) {
   const plutoTag = label("Pluto (dwarf planet)", "cw-planet cw-planet-small");
   plutoTag.position.set(pluto.position.x, pluto.position.y + 1.1, pluto.position.z);
   group.add(plutoTag);
+  // Pluto stays hidden until the class reaches its goal
+  const setPlutoFound = (found: boolean) => {
+    pluto.visible = found;
+    plutoTag.visible = found;
+  };
+  setPlutoFound(false);
   const kuiperTag = label("Kuiper Belt · 40 pts", "cw-planet");
   kuiperTag.position.set(KUIPER_X, PLANET_Y + 7.6, PLANET_Z);
   group.add(kuiperTag);
@@ -273,6 +279,8 @@ export function buildSolarSystem(label: LabelFactory, lowGraphics: boolean) {
 
   return {
     group,
+    setPlutoFound,
+    plutoPosition: pluto.position,
 
     /** Swap in real texture photos for any files present in public/textures/solar/. */
     useTextureFiles(files: string[]) {

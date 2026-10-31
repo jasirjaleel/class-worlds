@@ -57,3 +57,12 @@ export function totalsByStudent(
 export function classTotal(totals: Record<string, number>): number {
   return Object.values(totals).reduce((sum, n) => sum + n, 0);
 }
+
+/** Points the whole class needs together. Never 0, so an empty class hasn't "reached" it. */
+export function classGoal(studentCount: number, goalPerStudent: number): number {
+  return Math.max(1, studentCount * goalPerStudent);
+}
+
+export function goalReached(totals: Record<string, number>, studentCount: number, goalPerStudent: number): boolean {
+  return classTotal(totals) >= classGoal(studentCount, goalPerStudent);
+}

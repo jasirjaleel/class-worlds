@@ -5,6 +5,7 @@ export interface WorldContext {
   stage: Stage;
   students: Student[];
   lowGraphics: boolean;
+  timeZone: string;
 }
 
 /** What every world module returns. The play screen only talks to worlds through this. */

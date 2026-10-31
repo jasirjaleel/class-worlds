@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classTotal, localDateKey, localWeekKey, totalsByStudent } from "./points";
+import { classGoal, classTotal, goalReached, localDateKey, localWeekKey, totalsByStudent } from "./points";
 import type { PointEvent } from "./types";
 
 const DUBAI = "Asia/Dubai"; // UTC+4, no DST
@@ -25,6 +25,18 @@ describe("localWeekKey", () => {
     expect(localWeekKey(at("2026-10-26T08:00:00Z"), DUBAI)).toBe("2026-10-26"); // Mon
     expect(localWeekKey(at("2026-11-01T08:00:00Z"), DUBAI)).toBe("2026-10-26"); // Sun
     expect(localWeekKey(at("2026-11-02T08:00:00Z"), DUBAI)).toBe("2026-11-02"); // next Mon
+  });
+});
+
+describe("goalReached", () => {
+  it("needs the full goal, not a rounded-up one", () => {
+    expect(classGoal(24, 10)).toBe(240);
+    expect(goalReached({ a: 239 }, 24, 10)).toBe(false);
+    expect(goalReached({ a: 200, b: 40 }, 24, 10)).toBe(true);
+  });
+
+  it("is never reached by an empty class", () => {
+    expect(goalReached({}, 0, 10)).toBe(false);
   });
 });
 

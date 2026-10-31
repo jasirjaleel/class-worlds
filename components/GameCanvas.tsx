@@ -37,7 +37,7 @@ export default function GameCanvas({ classroom, roam = false, worldRef, onFps }:
       if (disposed) return;
       const c = getCached(id);
       if (!c) return;
-      world = create({ stage, students: c.students, lowGraphics });
+      world = create({ stage, students: c.students, lowGraphics, timeZone: c.timeZone });
       world.setTotals(currentTotals(c));
       worldRef.current = world;
       stage.start((dt, t) => world?.tick(dt, t));

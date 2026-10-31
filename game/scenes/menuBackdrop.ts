@@ -55,21 +55,38 @@ export function startMenuBackdrop(container: HTMLElement, lowGraphics: boolean) 
     return a;
   });
 
-  // a few clouds
+  // a few puffy clouds: a wide rounded layer with a smaller one on top
   const clouds = [0, 1, 2].map((i) => {
-    const c = voxelMesh(voxelSphere(1.8, () => "#e2e8f0"), 0.7);
-    c.scale.set(1.8, 0.6, 1);
-    c.position.set(-9 + i * 8, 6 + i, -6 + i * 4);
+    const puff: Voxel[] = [];
+    for (let x = -5; x <= 5; x++)
+      for (let z = -3; z <= 3; z++) {
+        const d = Math.hypot(x / 5, z / 3) + rand() * 0.2;
+        if (d < 1) puff.push([x, 0, z, "#f1f5f9"]);
+        if (d < 0.55) puff.push([x, 1, z, "#ffffff"]);
+      }
+    const c = voxelMesh(puff, 0.4);
+    c.position.set(0, 4 + i * 0.8, -5 + i * 3);
     stage.scene.add(c);
     return c;
   });
 
-  stage.fit({ minX: -9, maxX: 9, minZ: -9, maxZ: 9 });
+  // distant stars, placed well behind the island as seen from the camera
+  const away = new THREE.Vector3(-18, 34, 48).normalize().multiplyScalar(-80);
+  const starPos: number[] = [];
+  for (let i = 0; i < 500; i++) {
+    starPos.push(away.x + (rand() - 0.5) * 120, away.y + (rand() - 0.5) * 120, away.z + (rand() - 0.5) * 120);
+  }
+  const starGeo = new THREE.BufferGeometry();
+  starGeo.setAttribute("position", new THREE.Float32BufferAttribute(starPos, 3));
+  stage.scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: "#c7d2fe", size: 1.5, sizeAttenuation: false })));
+
+  stage.fit({ minX: -6.5, maxX: 6.5, minZ: -6.5, maxZ: 6.5, minY: -4, maxY: 5 });
   stage.start((_dt, t) => {
     island.rotation.y = t * 0.12;
     island.position.y = Math.sin(t * 0.8) * 0.3;
     kids.forEach((k, i) => k.setWave((Math.sin(t * 0.9 + i * 1.7) + 1) / 2 > 0.75 ? 1 : 0, t));
-    clouds.forEach((c, i) => (c.position.x = -12 + ((t * 0.6 + i * 8) % 24)));
+    // a wide loop so clouds wrap around off-screen, even on very wide displays
+    clouds.forEach((c, i) => (c.position.x = -30 + ((t * 0.6 + i * 20) % 60)));
   });
 
   return () => stage.dispose();

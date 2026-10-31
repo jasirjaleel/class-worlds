@@ -50,6 +50,14 @@ body {
   border-color: #fde68a;
   outline: none;
 }
+.cw-menu-btn-primary,
+.cw-menu-btn-primary:hover:not([aria-disabled="true"]),
+.cw-menu-btn-primary:focus-visible {
+  border-color: #fde68a;
+  border-left-color: #92400e;
+  background: var(--gold);
+  color: #1c1917;
+}
 .cw-menu-btn[aria-disabled="true"] {
   opacity: 0.45;
   cursor: not-allowed;

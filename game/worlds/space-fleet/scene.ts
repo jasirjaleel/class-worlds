@@ -1,13 +1,17 @@
 import * as THREE from "three";
 import type { CSS2DObject } from "three/examples/jsm/renderers/CSS2DRenderer.js";
+import { createSparks } from "../../engine/sparks";
 import { shade, voxelMesh, type Voxel } from "../../engine/voxel";
+import { goalReached } from "@/lib/points";
+import { worldMeta } from "../registry";
 import type { CreateWorld } from "../types";
 import { PLANET_Y, SCENE_BOUNDS, STOPS, buildSolarSystem, pointsToX } from "./solarSystem";
 
 // Space Fleet: a realistic Solar System laid out like a poster, Sun on the left.
 // Every student has a blocky rocket in an invisible row of the fleet. The first
 // 5 points build it at Earth; every point after that flies it outward, stop by
-// stop, to Mars, the Asteroid Belt, Jupiter ... and the Kuiper Belt.
+// stop, to Mars, the Asteroid Belt, Jupiter ... and the Kuiper Belt. Reaching
+// the class goal reveals Pluto out in the Kuiper Belt.
 
 const PARTS = 5;
 const ROW_TOP = PLANET_Y - 6.8;
@@ -50,12 +54,6 @@ interface Rocket {
   targetX: number;
   pop: number;
   color: string;
-}
-
-interface Spark {
-  mesh: THREE.Mesh;
-  vel: THREE.Vector3;
-  life: number;
 }
 
 export const createSpaceFleet: CreateWorld = ({ stage, students, lowGraphics }) => {
@@ -113,18 +111,7 @@ export const createSpaceFleet: CreateWorld = ({ stage, students, lowGraphics }) 
     maxY: SCENE_BOUNDS.maxY,
   });
 
-  // --- Reward sparks
-  const sparks: Spark[] = [];
-  const sparkGeo = new THREE.BoxGeometry(0.18, 0.18, 0.18);
-  const burst = (at: THREE.Vector3, color: string) => {
-    for (let i = 0; i < 18; i++) {
-      const mesh = new THREE.Mesh(sparkGeo, new THREE.MeshBasicMaterial({ color: i % 2 ? color : "#fde047", transparent: true }));
-      mesh.position.copy(at);
-      const vel = new THREE.Vector3(Math.random() - 0.5, Math.random() * 0.9 + 0.4, Math.random() - 0.5).multiplyScalar(6);
-      world.add(mesh);
-      sparks.push({ mesh, vel, life: 1 });
-    }
-  };
+  const sparks = createSparks(world);
 
   const setStage = (r: Rocket, next: number) => {
     if (next === r.stage) return;
@@ -138,6 +125,9 @@ export const createSpaceFleet: CreateWorld = ({ stage, students, lowGraphics }) 
   };
 
   let placed = false; // on first load rockets appear in place; after that they fly
+  let plutoFound = false;
+  let plutoFoundNow = false;
+  const goalPerStudent = worldMeta("space-fleet").goalPerStudent;
 
   return {
     setTotals(totals) {
@@ -149,6 +139,10 @@ export const createSpaceFleet: CreateWorld = ({ stage, students, lowGraphics }) 
         const reached = [...STOPS].reverse().find((s) => points >= s.points && s.name !== "Earth");
         r.label.element.textContent = reached ? `${r.name} ${points} · ${reached.name}` : `${r.name} ${points}`;
       }
+      const found = goalReached(totals, students.length, goalPerStudent);
+      plutoFoundNow = placed && found && !plutoFound;
+      plutoFound = found;
+      solar.setPlutoFound(found);
       placed = true;
     },
 
@@ -157,7 +151,14 @@ export const createSpaceFleet: CreateWorld = ({ stage, students, lowGraphics }) 
       if (!r) return;
       r.pop = 1;
       const at = new THREE.Vector3(r.targetX + 0.7, r.root.position.y, FLEET_Z);
-      burst(at, r.color);
+      sparks.burst(at, r.color);
+      if (plutoFoundNow) {
+        // this point reached the class goal: show everyone what they found
+        plutoFoundNow = false;
+        sparks.burst(solar.plutoPosition, "#efe2cf", "#fde047", 40);
+        stage.focusOn(solar.plutoPosition, 4, 3500);
+        return;
+      }
       stage.focusOn(new THREE.Vector3(r.targetX - 1, r.root.position.y + 2, 0), 2.4, 2200);
     },
 
@@ -177,19 +178,7 @@ export const createSpaceFleet: CreateWorld = ({ stage, students, lowGraphics }) 
         r.pivot.scale.setScalar(1 + Math.sin(r.pop * Math.PI) * 0.45);
       });
 
-      for (let i = sparks.length - 1; i >= 0; i--) {
-        const sp = sparks[i];
-        sp.life -= dt * 1.1;
-        sp.vel.y -= 12 * dt;
-        sp.mesh.position.addScaledVector(sp.vel, dt);
-        sp.mesh.rotation.x += dt * 6;
-        (sp.mesh.material as THREE.MeshBasicMaterial).opacity = Math.max(0, sp.life);
-        if (sp.life <= 0) {
-          world.remove(sp.mesh);
-          (sp.mesh.material as THREE.Material).dispose();
-          sparks.splice(i, 1);
-        }
-      }
+      sparks.tick(dt);
     },
 
     dispose() {

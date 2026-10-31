@@ -14,6 +14,9 @@ export interface WorldMeta {
   reset: ResetPeriod;
   /** Class goal per student for the reset period, shown as the shared progress bar. */
   goalPerStudent: number;
+  /** What the class goal does in this world, for the goal bar. */
+  goalText: string;
+  goalDone: string;
   ready: boolean;
   accent: string;
 }
@@ -27,6 +30,8 @@ export const WORLDS: WorldMeta[] = [
     tagline: "Build your rocket block by block, then fly planet to planet.",
     reset: "week",
     goalPerStudent: 10,
+    goalText: "reach it to discover Pluto",
+    goalDone: "reached! 🎉 You discovered Pluto",
     ready: true,
     accent: "#60a5fa",
   },
@@ -38,6 +43,8 @@ export const WORLDS: WorldMeta[] = [
     tagline: "Rise through the clouds, then break into the sunshine.",
     reset: "day",
     goalPerStudent: 5,
+    goalText: "reach it together",
+    goalDone: "reached! 🎉",
     ready: false,
     accent: "#f472b6",
   },
@@ -49,7 +56,9 @@ export const WORLDS: WorldMeta[] = [
     tagline: "Crack your egg and find out which dino hatches.",
     reset: "week",
     goalPerStudent: 8,
-    ready: false,
+    goalText: "reach it to wake the volcano",
+    goalDone: "reached! 🌋 The volcano is awake",
+    ready: true,
     accent: "#a3e635",
   },
   {
@@ -60,6 +69,8 @@ export const WORLDS: WorldMeta[] = [
     tagline: "Seed, sprout, tree, fruit. Also comes as a Date Palm and Hifz pack.",
     reset: "term",
     goalPerStudent: 30,
+    goalText: "reach it together",
+    goalDone: "reached! 🎉",
     ready: false,
     accent: "#4ade80",
   },
@@ -71,6 +82,8 @@ export const WORLDS: WorldMeta[] = [
     tagline: "Everyone owns a building. Together you raise a skyline all term.",
     reset: "term",
     goalPerStudent: 30,
+    goalText: "reach it together",
+    goalDone: "reached! 🎉",
     ready: false,
     accent: "#fbbf24",
   },
@@ -82,6 +95,8 @@ export const WORLDS: WorldMeta[] = [
     tagline: "Fill the dhow's sails together and sail port to port.",
     reset: "week",
     goalPerStudent: 10,
+    goalText: "reach it together",
+    goalDone: "reached! 🎉",
     ready: false,
     accent: "#38bdf8",
   },

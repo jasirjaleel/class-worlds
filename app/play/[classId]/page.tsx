@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
+import DinoBook from "@/components/DinoBook";
 import GameCanvas from "@/components/GameCanvas";
 import { worldMeta } from "@/game/worlds/registry";
 import type { WorldInstance } from "@/game/worlds/types";
-import { classTotal } from "@/lib/points";
+import { classGoal, classTotal, goalReached } from "@/lib/points";
 import { getCached, updateSettings } from "@/lib/store";
 import { currentTotals, useClassroom } from "@/lib/useClassroom";
 
@@ -29,6 +30,7 @@ function PlayScreen() {
   const [showRemote, setShowRemote] = useState(false);
   const [qr, setQr] = useState("");
   const [hasPlanetPhotos, setHasPlanetPhotos] = useState(false);
+  const [showBook, setShowBook] = useState(false);
 
   const onReward = useCallback(
     (msg: { studentId: string; amount: number }) => {
@@ -75,8 +77,9 @@ function PlayScreen() {
   const world = worldMeta(classroom.worldId);
   const totals = currentTotals(classroom);
   const total = classTotal(totals);
-  const goal = Math.max(1, classroom.students.length * world.goalPerStudent);
-  const pct = Math.min(100, Math.round((total / goal) * 100));
+  const goal = classGoal(classroom.students.length, world.goalPerStudent);
+  const reached = goalReached(totals, classroom.students.length, world.goalPerStudent);
+  const pct = Math.min(100, Math.floor((total / goal) * 100));
 
   return (
     <main className="relative h-dvh w-full overflow-hidden">
@@ -108,6 +111,11 @@ function PlayScreen() {
           >
             {classroom.lowGraphics ? "Low graphics" : "High graphics"}
           </button>
+          {classroom.worldId === "dino-eggs" && (
+            <button className="cw-panel px-3 py-1.5 text-xs font-bold text-gold" onClick={() => setShowBook(true)}>
+              📖 Dino Book
+            </button>
+          )}
           <button className="cw-panel px-3 py-1.5 text-xs font-bold text-gold" onClick={() => setShowRemote((v) => !v)}>
             📱 Remote
           </button>
@@ -123,6 +131,8 @@ function PlayScreen() {
         </div>
       )}
 
+      {showBook && <DinoBook classroom={classroom} onClose={() => setShowBook(false)} />}
+
       {/* Licence credit, only when real planet photos are in use */}
       {classroom.worldId === "space-fleet" && hasPlanetPhotos && (
         <p className="pointer-events-none absolute bottom-1 left-2 text-[10px] text-muted/70">
@@ -134,7 +144,7 @@ function PlayScreen() {
       <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-3 sm:p-4">
         <div className="cw-panel w-full max-w-xl px-4 py-2.5">
           <div className="mb-1.5 flex justify-between text-xs font-bold sm:text-sm">
-            <span>Class goal {pct >= 100 ? "reached! 🎉 New planet unlocked" : "· reach it to unlock a new planet"}</span>
+            <span>Class goal {reached ? world.goalDone : `· ${world.goalText}`}</span>
             <span className="text-gold">
               {total} / {goal} ⭐
             </span>
