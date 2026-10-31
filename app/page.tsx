@@ -26,7 +26,7 @@ export default function MainMenu() {
   const world = classroom ? worldMeta(classroom.worldId) : null;
 
   const items: { label: string; href?: string; hint: string }[] = [
-    { label: "World select", href: "/worlds", hint: `${READY_COUNT} ready · ${WORLDS.length - READY_COUNT} soon` },
+    { label: "World select", href: "/worlds", hint: READY_COUNT === WORLDS.length ? `${WORLDS.length} worlds` : `${READY_COUNT} ready · ${WORLDS.length - READY_COUNT} soon` },
     { label: "Term journey", hint: "Soon" },
     { label: "Free roam", href: `/play/${CLASS_ID}?roam=1`, hint: "Fly around" },
     { label: "Teacher", href: "/teacher", hint: "Class & students" },

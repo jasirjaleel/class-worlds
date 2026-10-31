@@ -1,3 +1,4 @@
+import { hashText } from "./hash";
 import { localWeekKey } from "./points";
 import type { PointEvent, Student } from "./types";
 
@@ -21,18 +22,9 @@ export const SPECIES: { id: SpeciesId; name: string; fact: string }[] = [
   { id: "ankylosaurus", name: "Ankylosaurus", fact: "It was covered in armour and had a bony club on its tail." },
 ];
 
-function hash(text: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < text.length; i++) {
-    h ^= text.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
 export function eggFor(studentId: string, weekKey: string) {
-  const species = SPECIES[hash(`${studentId}:${weekKey}:species`) % SPECIES.length];
-  return { species, gold: hash(`${studentId}:${weekKey}:gold`) % GOLD_CHANCE === 0 };
+  const species = SPECIES[hashText(`${studentId}:${weekKey}:species`) % SPECIES.length];
+  return { species, gold: hashText(`${studentId}:${weekKey}:gold`) % GOLD_CHANCE === 0 };
 }
 
 /** 0–4 while in the egg (more cracks each point), then 5 = baby, 6 = young, 7 = adult. */

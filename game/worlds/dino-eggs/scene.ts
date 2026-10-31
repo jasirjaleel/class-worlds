@@ -3,6 +3,7 @@ import type { CSS2DObject } from "three/examples/jsm/renderers/CSS2DRenderer.js"
 import { HATCH_POINTS, dinoStage, eggFor, type SpeciesId } from "@/lib/dinos";
 import { goalReached, localWeekKey } from "@/lib/points";
 import { buildAvatar } from "../../engine/avatar";
+import { disposeWorld } from "../../engine/kit";
 import { createSparks } from "../../engine/sparks";
 import { seeded, voxelMesh, type Voxel } from "../../engine/voxel";
 import { worldMeta } from "../registry";
@@ -234,14 +235,6 @@ export const createDinoEggs: CreateWorld = ({ stage, students, lowGraphics, time
       }
     },
 
-    dispose() {
-      stage.scene.remove(world);
-      world.traverse((o) => {
-        // voxel models share one cube geometry, so only free the instance buffers
-        if (o instanceof THREE.InstancedMesh) o.dispose();
-        else if (o instanceof THREE.Mesh) o.geometry.dispose();
-        if ("element" in o) (o as CSS2DObject).element.remove();
-      });
-    },
+    dispose: () => disposeWorld(stage, world),
   };
 };
