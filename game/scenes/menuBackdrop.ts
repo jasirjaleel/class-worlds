@@ -1,14 +1,18 @@
 import * as THREE from "three";
 import { buildAvatar } from "../engine/avatar";
+import { addSunlight, skyTexture } from "../engine/kit";
 import { Stage } from "../engine/stage";
 import { seeded, voxelMesh, voxelSphere, type Voxel } from "../engine/voxel";
 import { rocketVoxels } from "../worlds/space-fleet/scene";
 
 /** Floating blocky island behind the main menu: a rocket on its pad and a few waving students. */
 export function startMenuBackdrop(container: HTMLElement, lowGraphics: boolean) {
-  const stage = new Stage(container, { lowGraphics, background: "#0b1026" });
+  const stage = new Stage(container, { lowGraphics, background: "#070b18" });
+  stage.scene.background = skyTexture("#070b18", "#0c1430", "#16234d");
+  stage.useDepthCamera(24, new THREE.Vector3(-18, 26, 48));
   const island = new THREE.Group();
   stage.scene.add(island);
+  addSunlight(stage, island, { span: 14, top: 14, lowGraphics, from: [-14, 22, 18] });
 
   const rand = seeded(42);
   const ground: Voxel[] = [];
@@ -46,10 +50,11 @@ export function startMenuBackdrop(container: HTMLElement, lowGraphics: boolean) 
   island.add(rocket);
 
   const kids = ["#3b82f6", "#f59e0b", "#a855f7", "#14b8a6"].map((c, i) => {
-    const a = buildAvatar(c, i * 3 + 1);
+    const a = buildAvatar(c);
     a.group.scale.setScalar(1.6);
-    const angle = (i / 4) * Math.PI * 2 + 0.6;
-    a.group.position.set(Math.cos(angle) * 3.6, 0.3, Math.sin(angle) * 3.6);
+    // in the gaps between the trees, clear of their trunks
+    const angle = (i / 4) * Math.PI * 2 + 1.5;
+    a.group.position.set(Math.cos(angle) * 4.2, 0.3, Math.sin(angle) * 4.2);
     a.group.rotation.y = -angle + Math.PI / 2;
     island.add(a.group);
     return a;
@@ -78,7 +83,7 @@ export function startMenuBackdrop(container: HTMLElement, lowGraphics: boolean) 
   }
   const starGeo = new THREE.BufferGeometry();
   starGeo.setAttribute("position", new THREE.Float32BufferAttribute(starPos, 3));
-  stage.scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: "#c7d2fe", size: 1.5, sizeAttenuation: false })));
+  stage.scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: "#c7d2fe", size: 1.3, sizeAttenuation: false })));
 
   stage.fit({ minX: -6.5, maxX: 6.5, minZ: -6.5, maxZ: 6.5, minY: -4, maxY: 5 });
   stage.start((_dt, t) => {

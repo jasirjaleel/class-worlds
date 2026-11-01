@@ -1,50 +1,76 @@
 import * as THREE from "three";
-import { shade, voxelMesh, type Voxel } from "./voxel";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-const SKIN_TONES = ["#f2c9a0", "#d9a77a", "#b98257", "#8d5a3b", "#6b4329"];
+const LIMB = 0.075;
+const ARM_REST = 0.35;
+
+/** A stick from one point to another. */
+function stick(from: THREE.Vector3, to: THREE.Vector3): THREE.BufferGeometry {
+  const line = to.clone().sub(from);
+  const geometry = new THREE.CylinderGeometry(LIMB, LIMB, line.length(), 8);
+  geometry.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), line.clone().normalize()));
+  const middle = from.clone().add(to).multiplyScalar(0.5);
+  geometry.translate(middle.x, middle.y, middle.z);
+  return geometry;
+}
+
+const SHOULDER_Y = 0.98;
+
+// One shape shared by every student: head, body and legs, with arms apart so they can wave
+let bodyShape: THREE.BufferGeometry | null = null;
+let armShape: THREE.BufferGeometry | null = null;
+
+function bodyGeometry() {
+  if (bodyShape) return bodyShape;
+  const hip = new THREE.Vector3(0, 0.6, 0);
+  const head = new THREE.SphereGeometry(0.2, 16, 12);
+  head.translate(0, 1.27, 0);
+  bodyShape = mergeGeometries([
+    head,
+    stick(hip, new THREE.Vector3(0, 1.1, 0)),
+    stick(hip, new THREE.Vector3(-0.22, 0, 0)),
+    stick(hip, new THREE.Vector3(0.22, 0, 0)),
+  ]);
+  return bodyShape;
+}
+
+function armGeometry() {
+  armShape ??= stick(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, -0.44, 0));
+  return armShape;
+}
 
 /**
- * A small blocky student character (about 1.4 units tall) in the student's colour.
- * Arms are separate so worlds can make them wave.
+ * A simple stick figure (about 1.45 units tall) in the student's colour, with no
+ * face. Arms are separate so worlds can make them wave.
  */
-export function buildAvatar(color: string, seed: number) {
-  const skin = SKIN_TONES[seed % SKIN_TONES.length];
-  const hair = seed % 3 === 0 ? "#3b2a1e" : seed % 3 === 1 ? "#1f1a17" : "#6b4a2b";
-  const pants = shade(color, -0.25);
-
-  const body: Voxel[] = [];
-  // legs
-  for (let y = 0; y < 3; y++) {
-    body.push([-1, y, 0, pants], [1, y, 0, pants]);
-  }
-  // shirt
-  for (let y = 3; y < 6; y++) for (let x = -1; x <= 1; x++) body.push([x, y, 0, color]);
-  // head + hair + eyes
-  for (let y = 6; y < 9; y++)
-    for (let x = -1; x <= 1; x++) body.push([x, y, 0, y === 8 ? hair : skin]);
-  body.push([-1, 7, 1, "#1f2937"], [1, 7, 1, "#1f2937"]);
-
-  const size = 0.16;
+export function buildAvatar(color: string) {
+  const material = new THREE.MeshLambertMaterial({ color });
   const group = new THREE.Group();
-  group.add(voxelMesh(body, size));
 
-  const arm = (side: number) => {
+  const body = new THREE.Mesh(bodyGeometry(), material);
+  body.castShadow = true;
+  group.add(body);
+
+  const arm = () => {
     const pivot = new THREE.Group();
-    pivot.position.set(side * 2 * size, 5.5 * size, 0);
-    const mesh = voxelMesh([[0, -1, 0, color], [0, -2, 0, skin]], size);
+    pivot.position.set(0, SHOULDER_Y, 0);
+    const mesh = new THREE.Mesh(armGeometry(), material);
+    mesh.castShadow = true;
     pivot.add(mesh);
     group.add(pivot);
     return pivot;
   };
-  const leftArm = arm(-1);
-  const rightArm = arm(1);
+  const leftArm = arm();
+  const rightArm = arm();
+  leftArm.rotation.z = -ARM_REST;
+  rightArm.rotation.z = ARM_REST;
 
   return {
     group,
     /** 0 = arms down, 1 = full wave */
     setWave(amount: number, time: number) {
-      rightArm.rotation.z = amount * (2.4 + Math.sin(time * 14) * 0.4);
-      leftArm.rotation.z = -amount * 0.4;
+      rightArm.rotation.z = ARM_REST + amount * (2.1 + Math.sin(time * 14) * 0.4);
+      leftArm.rotation.z = -ARM_REST - amount * 0.4;
     },
   };
 }

@@ -1,23 +1,27 @@
 import type { Metadata, Viewport } from "next";
-import { Bungee, Nunito } from "next/font/google";
+import { Bricolage_Grotesque, Figtree } from "next/font/google";
+import SoundListeners from "@/components/SoundListeners";
 import "./globals.css";
 
-const display = Bungee({ variable: "--font-display", weight: "400", subsets: ["latin"] });
-const body = Nunito({ variable: "--font-body", subsets: ["latin"] });
+const display = Bricolage_Grotesque({ variable: "--font-display", subsets: ["latin"] });
+const body = Figtree({ variable: "--font-body", subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Class Worlds",
-  description: "A blocky 3D classroom world that grows with every reward.",
+  description: "Reward your class from your phone and watch their world grow on the big screen.",
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b1026",
+  themeColor: "#070b18",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${display.variable} ${body.variable} h-full antialiased`}>
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        <SoundListeners />
+        {children}
+      </body>
     </html>
   );
 }

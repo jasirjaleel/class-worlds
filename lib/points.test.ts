@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classGoal, classTotal, goalReached, localDateKey, localWeekKey, totalsByStudent } from "./points";
+import { CLASS_STEPS, classGoal, classSteps, classTotal, goalReached, localDateKey, localWeekKey, totalsByStudent } from "./points";
 import type { PointEvent } from "./types";
 
 const DUBAI = "Asia/Dubai"; // UTC+4, no DST
@@ -25,6 +25,25 @@ describe("localWeekKey", () => {
     expect(localWeekKey(at("2026-10-26T08:00:00Z"), DUBAI)).toBe("2026-10-26"); // Mon
     expect(localWeekKey(at("2026-11-01T08:00:00Z"), DUBAI)).toBe("2026-10-26"); // Sun
     expect(localWeekKey(at("2026-11-02T08:00:00Z"), DUBAI)).toBe("2026-11-02"); // next Mon
+  });
+});
+
+describe("classSteps", () => {
+  it("counts finished steps and the points to the next one", () => {
+    expect(classSteps(0, 240)).toEqual({ done: 0, toNext: 60 });
+    expect(classSteps(59, 240)).toEqual({ done: 0, toNext: 1 });
+    expect(classSteps(60, 240)).toEqual({ done: 1, toNext: 60 });
+    expect(classSteps(239, 240)).toEqual({ done: 3, toNext: 1 });
+  });
+
+  it("stops at the last step, even past the goal", () => {
+    expect(classSteps(240, 240)).toEqual({ done: CLASS_STEPS, toNext: 0 });
+    expect(classSteps(999, 240)).toEqual({ done: CLASS_STEPS, toNext: 0 });
+  });
+
+  it("works when the goal doesn't divide evenly", () => {
+    expect(classSteps(2, 5)).toEqual({ done: 1, toNext: 1 });
+    expect(classSteps(3, 5)).toEqual({ done: 2, toNext: 1 });
   });
 });
 

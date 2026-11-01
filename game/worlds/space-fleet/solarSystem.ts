@@ -36,13 +36,18 @@ const BODIES: BodyDef[] = [
   { id: "neptune", name: "Neptune", radiusKm: 24622, x: 42, file: "2k_neptune.jpg", tilt: 28.3, spin: 0.3 },
 ];
 
+/** How far each planet sits in front of (+) or behind (-) the line, so the row has real depth. */
+const DEPTH: Partial<Record<SurfaceId, number>> = {
+  mercury: 3, venus: -3, earth: 2, mars: -4, jupiter: -7, saturn: -2, uranus: -6, neptune: 1,
+};
+
 const SUN = { radius: displayRadius(696_340), x: -34 };
 const BELT_X = 7.5;
 const KUIPER_X = 49;
 
-/** Journey stops: total points needed to reach each (the first 5 build the rocket at Earth). */
+/** Journey stops: total points needed to reach each (the first 4 finish the rocket at Earth). */
 export const STOPS = [
-  { name: "Earth", points: 5, x: -7.5 },
+  { name: "Earth", points: 4, x: -7.5 },
   { name: "Mars", points: 9, x: 0.5 },
   { name: "Asteroid Belt", points: 13, x: BELT_X },
   { name: "Jupiter", points: 17, x: 15.5 },
@@ -83,14 +88,14 @@ function sphere(radius: number, map: THREE.Texture, lowGraphics: boolean) {
 }
 
 /** Soft additive glow drawn on a canvas, used around the Sun. */
-function glowSprite(color: string, size: number) {
+function glowSprite(color: string, size: number, sunTones = color.startsWith("rgba(255")) {
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = 256;
   const ctx = canvas.getContext("2d")!;
   const g = ctx.createRadialGradient(128, 128, 30, 128, 128, 128);
   g.addColorStop(0, color);
-  g.addColorStop(0.35, "rgba(255,150,40,0.35)");
-  g.addColorStop(1, "rgba(255,120,0,0)");
+  g.addColorStop(0.35, sunTones ? "rgba(255,150,40,0.35)" : color.replace(/[\d.]+\)$/, "0.14)"));
+  g.addColorStop(1, sunTones ? "rgba(255,120,0,0)" : color.replace(/[\d.]+\)$/, "0)"));
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 256, 256);
   const sprite = new THREE.Sprite(
@@ -134,7 +139,7 @@ function rockField(opts: {
     // denser in the middle of the band, like the real belt seen edge-on
     const x = opts.x + (rand() + rand() - 1) * opts.width * 0.5;
     const y = PLANET_Y + (rand() - 0.5) * opts.height;
-    const z = PLANET_Z + (rand() - 0.5) * 8;
+    const z = PLANET_Z + (rand() - 0.5) * 22;
     q.setFromEuler(e.set(rand() * 6, rand() * 6, rand() * 6));
     m.compose(new THREE.Vector3(x, y, z), q, new THREE.Vector3(s, s, s));
     mesh.setMatrixAt(i, m);
@@ -152,9 +157,9 @@ export function buildSolarSystem(label: LabelFactory, lowGraphics: boolean) {
   // --- Light from the Sun: every planet gets a day side and a night side
   const sunLight = new THREE.PointLight("#fff1dc", 3.2, 0, 0);
   sunLight.position.set(SUN.x, PLANET_Y, PLANET_Z);
-  const fill = new THREE.DirectionalLight("#9fb4ff", 0.45); // faint fill from the viewer so rockets stay readable
+  const fill = new THREE.DirectionalLight("#b4c4ff", 0.5); // faint fill from the viewer so rockets stay readable
   fill.position.set(0, 10, 80);
-  group.add(sunLight, fill, new THREE.AmbientLight("#334066", 0.35));
+  group.add(sunLight, fill, new THREE.AmbientLight("#334066", 0.18));
 
   // --- The Sun
   const sunMat = new THREE.MeshBasicMaterial({ map: drawSurface("sun", lowGraphics) });
@@ -164,7 +169,7 @@ export function buildSolarSystem(label: LabelFactory, lowGraphics: boolean) {
   group.add(sun);
   spinners.push({ mesh: sun, speed: 0.02 });
   if (!lowGraphics) {
-    const glow = glowSprite("rgba(255,220,120,0.9)", SUN.radius * 3.2);
+    const glow = glowSprite("rgba(255,220,120,0.9)", SUN.radius * 4);
     glow.position.copy(sun.position);
     group.add(glow);
   }
@@ -176,7 +181,7 @@ export function buildSolarSystem(label: LabelFactory, lowGraphics: boolean) {
   for (const b of BODIES) {
     const r = displayRadius(b.radiusKm);
     const holder = new THREE.Group(); // carries the axial tilt
-    holder.position.set(b.x, PLANET_Y, PLANET_Z);
+    holder.position.set(b.x, PLANET_Y, PLANET_Z + (DEPTH[b.id] ?? 0));
     holder.rotation.z = THREE.MathUtils.degToRad(-(b.tilt ?? 0));
     const mesh = sphere(r, drawSurface(b.id, lowGraphics), lowGraphics);
     if (b.file) materials.set(b.file, mesh.material as THREE.MeshStandardMaterial);
@@ -220,7 +225,9 @@ export function buildSolarSystem(label: LabelFactory, lowGraphics: boolean) {
     const text = b.id === "earth" ? "Earth · start" : stop ? `${b.name} · ${stop.points} pts` : b.name;
     const tag = label(text, "cw-planet");
     // scenery names (Mercury, Venus) go underneath so they don't crowd Earth's label
-    tag.position.set(b.x, stop ? PLANET_Y + r + 1.1 : PLANET_Y - r - 1, PLANET_Z);
+    // Neptune's label sits a little higher so it clears Uranus's
+    const lift = b.id === "neptune" ? 1.6 : 0;
+    tag.position.set(b.x, stop ? PLANET_Y + r + 1.1 + lift : PLANET_Y - r - 1, PLANET_Z);
     group.add(tag);
   }
 
@@ -267,10 +274,38 @@ export function buildSolarSystem(label: LabelFactory, lowGraphics: boolean) {
   // --- Distant stars
   const rand = seeded(7);
   const starPos: number[] = [];
-  for (let i = 0; i < 1400; i++) starPos.push(-120 + rand() * 260, -60 + rand() * 120, -80 - rand() * 40);
+  // spread far back, so near and far stars shift differently as the camera sways
+  for (let i = 0; i < 2400; i++) starPos.push(-300 + rand() * 600, -170 + rand() * 340, -60 - rand() * 420);
   const starGeo = new THREE.BufferGeometry();
   starGeo.setAttribute("position", new THREE.Float32BufferAttribute(starPos, 3));
   group.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: "#dbe4ff", size: 1.6, sizeAttenuation: false })));
+  // and a full sphere of far stars, so Free Roam never finds an empty side
+  const shellPos: number[] = [];
+  const shellCount = lowGraphics ? 1500 : 4000;
+  for (let i = 0; i < shellCount; i++) {
+    const y = rand() * 2 - 1;
+    const a = rand() * Math.PI * 2;
+    const flat = Math.sqrt(1 - y * y);
+    const r = 700 + rand() * 500;
+    shellPos.push(Math.cos(a) * flat * r, y * r, Math.sin(a) * flat * r);
+  }
+  const shellGeo = new THREE.BufferGeometry();
+  shellGeo.setAttribute("position", new THREE.Float32BufferAttribute(shellPos, 3));
+  group.add(new THREE.Points(shellGeo, new THREE.PointsMaterial({ color: "#cdd8ff", size: 1.3, sizeAttenuation: false })));
+
+  if (!lowGraphics) {
+    // faint clouds of distant gas behind everything
+    const nebulae: [string, number, number, number][] = [
+      ["rgba(90,70,190,0.5)", -30, PLANET_Y + 14, 120],
+      ["rgba(40,110,170,0.45)", 40, PLANET_Y - 18, 150],
+      ["rgba(170,60,120,0.3)", 62, PLANET_Y + 22, 95],
+    ];
+    for (const [color, x, y, size] of nebulae) {
+      const cloud = glowSprite(color, size);
+      cloud.position.set(x, y, -400);
+      group.add(cloud);
+    }
+  }
 
   const beltMatrix = new THREE.Matrix4();
   const beltPos = new THREE.Vector3();

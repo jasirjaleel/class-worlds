@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { WORLDS } from "@/game/worlds/registry";
+import { isReason } from "@/lib/reasons";
 import {
   addStudents,
   awardPoints,
@@ -34,18 +35,20 @@ export async function POST(req: NextRequest, ctx: RouteContext<"/api/classes/[id
       if (typeof body.studentId !== "string" || !Number.isInteger(amount) || Math.abs(amount) > 10) return bad("Bad award");
       const known = getClassroom(id).students.some((s) => s.id === body.studentId);
       if (!known) return bad("Unknown student");
-      return NextResponse.json(awardPoints(id, body.studentId, amount));
+      if (body.reason !== undefined && !isReason(body.reason)) return bad("Unknown reason");
+      return NextResponse.json(awardPoints(id, body.studentId, amount, body.reason ?? null));
     }
     case "undo":
       return NextResponse.json(undoLast(id));
     case "settings": {
-      const patch: { name?: string; worldId?: WorldId; lowGraphics?: boolean } = {};
+      const patch: { name?: string; worldId?: WorldId; lowGraphics?: boolean; showScores?: boolean } = {};
       if (typeof body.name === "string") patch.name = body.name.slice(0, 60);
       if (typeof body.worldId === "string") {
         if (!WORLDS.some((w) => w.id === body.worldId)) return bad("Unknown world");
         patch.worldId = body.worldId as WorldId;
       }
       if (typeof body.lowGraphics === "boolean") patch.lowGraphics = body.lowGraphics;
+      if (typeof body.showScores === "boolean") patch.showScores = body.showScores;
       return NextResponse.json(updateSettings(id, patch));
     }
     case "addStudents": {

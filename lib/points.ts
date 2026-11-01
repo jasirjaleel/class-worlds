@@ -63,6 +63,16 @@ export function classGoal(studentCount: number, goalPerStudent: number): number 
   return Math.max(1, studentCount * goalPerStudent);
 }
 
+/** The class goal is split into steps, so there is always a next win close by. */
+export const CLASS_STEPS = 4;
+
+/** How many steps are done, and how many points until the next one. */
+export function classSteps(total: number, goal: number) {
+  const done = Math.min(CLASS_STEPS, Math.floor((Math.max(total, 0) * CLASS_STEPS) / goal));
+  const nextAt = Math.ceil(((done + 1) * goal) / CLASS_STEPS);
+  return { done, toNext: done >= CLASS_STEPS ? 0 : nextAt - total };
+}
+
 export function goalReached(totals: Record<string, number>, studentCount: number, goalPerStudent: number): boolean {
   return classTotal(totals) >= classGoal(studentCount, goalPerStudent);
 }

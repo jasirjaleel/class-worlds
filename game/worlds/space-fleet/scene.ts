@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { CSS2DObject } from "three/examples/jsm/renderers/CSS2DRenderer.js";
-import { disposeWorld } from "../../engine/kit";
+import { disposeWorld, tagName } from "../../engine/kit";
+import { playSound } from "../../engine/sound";
 import { createSparks } from "../../engine/sparks";
 import { shade, voxelMesh, type Voxel } from "../../engine/voxel";
 import { goalReached } from "@/lib/points";
@@ -9,8 +10,8 @@ import type { CreateWorld } from "../types";
 import { PLANET_Y, SCENE_BOUNDS, STOPS, buildSolarSystem, pointsToX } from "./solarSystem";
 
 // Space Fleet: a realistic Solar System laid out like a poster, Sun on the left.
-// Every student has a blocky rocket in an invisible row of the fleet. The first
-// 5 points build it at Earth; every point after that flies it outward, stop by
+// Every student has a blocky rocket in an invisible row of the fleet, with its
+// engine already built. The first 4 points finish it at Earth; every point after that flies it outward, stop by
 // stop, to Mars, the Asteroid Belt, Jupiter ... and the Kuiper Belt. Reaching
 // the class goal reveals Pluto out in the Kuiper Belt.
 
@@ -57,13 +58,14 @@ interface Rocket {
   color: string;
 }
 
-export const createSpaceFleet: CreateWorld = ({ stage, students, lowGraphics }) => {
+export const createSpaceFleet: CreateWorld = ({ stage, students, lowGraphics, showScores }) => {
   const world = new THREE.Group();
   stage.scene.add(world);
   stage.scene.background = new THREE.Color("#03040b");
   stage.setLighting("space");
-  // nearly face-on, slightly from above: planets read as round spheres in a row
-  stage.setCameraOffset(new THREE.Vector3(0, 9, 80));
+  // a long lens, nearly face-on: planets read as round spheres in a row, at different depths
+  stage.useDepthCamera(16, new THREE.Vector3(0, 0.1, 1));
+  stage.setDrift(0.008);
 
   const solar = buildSolarSystem((text, className) => stage.label(text, className), lowGraphics);
   world.add(solar.group);
@@ -134,11 +136,12 @@ export const createSpaceFleet: CreateWorld = ({ stage, students, lowGraphics }) 
     setTotals(totals) {
       for (const r of rockets) {
         const points = totals[r.studentId] ?? 0;
-        setStage(r, Math.min(points, PARTS));
+        setStage(r, Math.min(points + 1, PARTS)); // the engine comes free as a head start
         r.targetX = pointsToX(points);
         if (!placed) r.x = r.root.position.x = r.targetX;
         const reached = [...STOPS].reverse().find((s) => points >= s.points && s.name !== "Earth");
-        r.label.element.textContent = reached ? `${r.name} ${points} · ${reached.name}` : `${r.name} ${points}`;
+        const who = tagName(r.name, points, showScores);
+        r.label.element.textContent = reached ? `${who} · ${reached.name}` : who;
       }
       const found = goalReached(totals, students.length, goalPerStudent);
       plutoFoundNow = placed && found && !plutoFound;
@@ -153,9 +156,12 @@ export const createSpaceFleet: CreateWorld = ({ stage, students, lowGraphics }) 
       r.pop = 1;
       const at = new THREE.Vector3(r.targetX + 0.7, r.root.position.y, FLEET_Z);
       sparks.burst(at, r.color);
+      // still building makes a click; a rocket with somewhere to go whooshes
+      playSound(Math.abs(r.targetX - r.x) > 0.01 ? "whoosh" : "metalClick");
       if (plutoFoundNow) {
         // this point reached the class goal: show everyone what they found
         plutoFoundNow = false;
+        playSound("rumble", 0.1);
         sparks.burst(solar.plutoPosition, "#efe2cf", "#fde047", 40);
         stage.focusOn(solar.plutoPosition, 4, 3500);
         return;

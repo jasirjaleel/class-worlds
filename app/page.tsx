@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
+import { ArrowRight } from "@/components/Icons";
+import WorldCard from "@/components/WorldCard";
 import { startMenuBackdrop } from "@/game/scenes/menuBackdrop";
 import { WORLDS, worldMeta } from "@/game/worlds/registry";
 import { setWorld } from "@/lib/store";
@@ -33,94 +35,72 @@ export default function MainMenu() {
   ];
 
   return (
-    <main className="relative min-h-dvh w-full overflow-x-hidden lg:h-dvh lg:overflow-hidden">
-      <div ref={backdrop} className="absolute inset-x-0 top-0 h-60 lg:bottom-36 lg:left-[32%] lg:h-auto" />
-      <div className="pointer-events-none absolute inset-0 hidden bg-gradient-to-r from-[#0b1026] via-[#0b1026]/30 to-transparent lg:block" />
+    <main className="relative flex min-h-dvh w-full flex-col overflow-x-hidden">
+      <div ref={backdrop} className="absolute inset-x-0 top-0 h-64 lg:bottom-0 lg:left-[30%] lg:h-auto" />
+      <div className="pointer-events-none absolute inset-x-0 top-40 h-24 bg-gradient-to-b from-transparent to-bg lg:hidden" />
+      {/* blends the left edge of the 3D scene into the page */}
+      <div className="pointer-events-none absolute inset-y-0 left-[30%] hidden w-[28%] bg-gradient-to-r from-bg to-transparent lg:block" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-72 bg-gradient-to-t from-bg via-bg/85 to-transparent lg:block" />
 
-      <div className="relative z-10 flex flex-col gap-5 px-4 pb-6 pt-56 lg:h-full lg:max-w-md lg:justify-center lg:px-10 lg:py-6">
-        <div>
-          <h1 className="font-display text-5xl leading-[0.95] text-gold drop-shadow-[0_4px_0_#92400e] xl:text-7xl">
+      <div className="relative z-10 flex flex-1 flex-col justify-center gap-6 px-4 pb-6 pt-56 sm:px-8 lg:max-w-[30rem] lg:px-12 lg:py-6">
+        <div className="cw-rise">
+          <p className="cw-eyebrow">For the classroom screen</p>
+          <h1 className="cw-title cw-hero-title mt-3 text-6xl text-white xl:text-7xl">
             Class
             <br />
             Worlds
           </h1>
-          <p className="mt-4 text-lg font-semibold leading-snug text-text">
+          <p className="mt-4 max-w-sm text-lg leading-snug text-text/90">
             Reward your class from your phone. Watch their world grow on the big screen.
           </p>
-          {classroom && (
-            <p className="mt-2 text-sm text-muted">
-              {classroom.name} · {classroom.students.length} students
-            </p>
-          )}
         </div>
 
-        <nav className="flex flex-col gap-2.5" aria-label="Main menu">
+        <nav className="cw-rise flex flex-col gap-2" style={{ animationDelay: "90ms" }} aria-label="Main menu">
           <Link href={`/play/${CLASS_ID}`} className="cw-menu-btn cw-menu-btn-primary">
             <span>Play class world</span>
-            {world && (
-              <span className="font-sans text-xs font-extrabold tracking-normal">
-                {world.emoji} {world.name}
-              </span>
-            )}
+            <span className="flex items-center gap-2 text-sm font-semibold">
+              {world?.name}
+              <ArrowRight size={18} />
+            </span>
           </Link>
           {items.map((item) =>
             item.href ? (
-              <Link key={item.label} href={item.href} className="cw-menu-btn">
+              <Link key={item.label} href={item.href} className="cw-menu-btn !py-2.5 text-[0.95rem]">
                 <span>{item.label}</span>
-                <span className="font-sans text-xs font-bold tracking-normal text-muted">{item.hint}</span>
+                <span className="text-xs font-medium text-muted">{item.hint}</span>
               </Link>
             ) : (
-              <span key={item.label} className="cw-menu-btn" aria-disabled="true">
+              <span key={item.label} className="cw-menu-btn !py-2.5 text-[0.95rem]" aria-disabled="true">
                 <span>{item.label}</span>
-                <span className="font-sans text-xs font-bold tracking-normal text-muted">{item.hint}</span>
+                <span className="text-xs font-medium">{item.hint}</span>
               </span>
             ),
           )}
         </nav>
-
-        <p className="text-xs text-muted">First names only · No student accounts · No ads</p>
       </div>
 
-      <section
-        aria-labelledby="choose-world"
-        className="relative z-10 px-4 pb-8 lg:absolute lg:bottom-5 lg:left-[32%] lg:right-5 lg:p-0"
-      >
-        <h2 id="choose-world" className="mb-2 font-display text-sm tracking-wider text-text">
-          Choose a world
-        </h2>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
-          {WORLDS.map((w) => {
-            const active = classroom?.worldId === w.id;
-            return (
-              <button
-                key={w.id}
-                disabled={!w.ready}
-                aria-current={active ? "true" : undefined}
-                onClick={() => {
-                  setWorld(CLASS_ID, w.id);
-                  router.push(`/play/${CLASS_ID}`);
-                }}
-                className="cw-panel flex min-h-20 flex-col justify-between gap-1 p-2.5 text-left transition enabled:hover:-translate-y-1 disabled:cursor-not-allowed"
-                style={{ borderColor: active ? w.accent : undefined }}
-              >
-                <span className="flex items-start justify-between gap-1">
-                  <span className={`text-2xl ${w.ready ? "" : "opacity-60"}`} aria-hidden="true">
-                    {w.emoji}
-                  </span>
-                  <span
-                    className={`rounded-full px-1.5 py-0.5 text-[10px] font-extrabold ${
-                      active ? "bg-gold text-black" : "bg-white/10 text-muted"
-                    }`}
-                  >
-                    {active ? "Playing" : w.ready ? "Ready" : "Soon"}
-                  </span>
-                </span>
-                <span className={`font-display text-xs leading-tight ${w.ready ? "text-text" : "text-muted"}`}>
-                  {w.name}
-                </span>
-              </button>
-            );
-          })}
+      <section aria-labelledby="choose-world" className="cw-rise cw-world-strip relative z-10 px-4 pb-6 sm:px-8 lg:px-12 lg:pb-7" style={{ animationDelay: "180ms" }}>
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+          <h2 id="choose-world" className="cw-heading text-lg text-white">
+            Choose a world
+          </h2>
+          <p className="text-xs text-muted">
+            {classroom ? `${classroom.name} · ${classroom.students.length} students · ` : ""}First names only · No student accounts · No ads
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {WORLDS.map((w) => (
+            <WorldCard
+              key={w.id}
+              world={w}
+              active={classroom?.worldId === w.id}
+              sizes="(min-width: 1024px) 16vw, (min-width: 640px) 33vw, 50vw"
+              onSelect={() => {
+                setWorld(CLASS_ID, w.id);
+                router.push(`/play/${CLASS_ID}`);
+              }}
+            />
+          ))}
         </div>
       </section>
     </main>

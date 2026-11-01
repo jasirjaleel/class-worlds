@@ -2,7 +2,9 @@
 
 import { useParams } from "next/navigation";
 import { Suspense, useState } from "react";
+import { Star, Undo } from "@/components/Icons";
 import { worldMeta } from "@/game/worlds/registry";
+import { DEFAULT_REASON, REASONS, type ReasonId } from "@/lib/reasons";
 import { awardPoints, undoLast } from "@/lib/store";
 import { currentTotals, useClassroom } from "@/lib/useClassroom";
 
@@ -19,6 +21,7 @@ function Remote() {
   const { classId } = useParams<{ classId: string }>();
   const classroom = useClassroom(classId);
   const [flash, setFlash] = useState<string | null>(null);
+  const [reason, setReason] = useState<ReasonId>(DEFAULT_REASON);
 
   if (!classroom) return <main className="min-h-dvh bg-bg" />;
   const world = worldMeta(classroom.worldId);
@@ -27,51 +30,76 @@ function Remote() {
   const lastName = classroom.students.find((s) => s.id === lastEvent?.studentId)?.name;
 
   const reward = (id: string) => {
-    awardPoints(classId, id, 1);
+    awardPoints(classId, id, reason);
     navigator.vibrate?.(30);
     setFlash(id);
     setTimeout(() => setFlash((f) => (f === id ? null : f)), 400);
   };
 
   return (
-    <main className="mx-auto min-h-dvh max-w-lg px-4 pb-24 pt-4">
-      <header className="mb-4">
-        <p className="text-xs font-bold uppercase tracking-wider text-muted">Remote · {classroom.name}</p>
-        <h1 className="font-display text-2xl text-gold">
-          {world.emoji} {world.name}
-        </h1>
-        <p className="text-sm text-muted">Tap a student to give a point.</p>
+    <main className="mx-auto min-h-dvh max-w-lg px-4 pb-28 pt-6">
+      <header className="mb-5">
+        <p className="cw-eyebrow">Remote · {classroom.name}</p>
+        <h1 className="cw-title mt-2 text-3xl text-white">{world.name}</h1>
+        <p className="mt-1.5 text-sm text-muted">Choose why, then tap a student.</p>
       </header>
+
+      <div className="sticky top-0 z-10 -mx-4 mb-3 bg-bg/90 px-4 py-2 backdrop-blur-xl">
+        <div role="radiogroup" aria-label="Reason for the point" className="flex flex-wrap gap-1.5">
+          {(Object.keys(REASONS) as ReasonId[]).map((id) => (
+            <button
+              key={id}
+              role="radio"
+              aria-checked={reason === id}
+              onClick={() => setReason(id)}
+              className={`rounded-full border px-3 py-1.5 text-sm font-semibold transition ${
+                reason === id ? "border-transparent bg-gold text-[#1b1405]" : "border-line bg-surface text-text/85"
+              }`}
+            >
+              {REASONS[id].button}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
         {classroom.students.map((s) => (
           <li key={s.id}>
             <button
               onClick={() => reward(s.id)}
-              aria-label={`Give ${s.name} a point (${totals[s.id] ?? 0} now)`}
-              className={`flex w-full items-center gap-2 rounded-xl border border-line bg-panel p-3 text-left transition active:scale-95 ${
-                flash === s.id ? "ring-4 ring-gold" : ""
+              aria-label={`Give ${s.name} a point for ${REASONS[reason].button.toLowerCase()} (${totals[s.id] ?? 0} now)`}
+              className={`flex w-full items-center gap-2.5 rounded-2xl border bg-surface p-2.5 text-left transition duration-200 active:scale-[0.97] ${
+                flash === s.id ? "border-gold" : "border-line"
               }`}
             >
-              <span className="h-8 w-8 shrink-0 rounded-md" style={{ background: s.color }} />
+              <span
+                className="cw-heading flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-base text-white"
+                style={{ background: s.color }}
+                aria-hidden="true"
+              >
+                {s.name.charAt(0).toUpperCase()}
+              </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-bold">{s.name}</span>
+                <span className="block truncate text-[0.95rem] font-semibold">{s.name}</span>
                 <span className="text-xs text-muted">{totals[s.id] ?? 0} pts</span>
               </span>
-              <span className="text-xl">⭐</span>
+              <span className={flash === s.id ? "text-gold" : "text-muted"}>
+                <Star size={18} />
+              </span>
             </button>
           </li>
         ))}
       </ul>
 
-      <div className="fixed inset-x-0 bottom-0 border-t border-line bg-bg/95 p-3 backdrop-blur">
-        <div className="mx-auto flex max-w-lg gap-2">
+      <div className="fixed inset-x-0 bottom-0 border-t border-line bg-bg/90 p-3 backdrop-blur-xl">
+        <div className="mx-auto max-w-lg">
           <button
             disabled={!lastEvent}
             onClick={() => undoLast(classId)}
-            className="flex-1 rounded-xl border border-line bg-panel py-3 font-bold disabled:opacity-40"
+            className="cw-menu-btn !justify-center font-semibold disabled:opacity-40"
           >
-            ↩ Undo{lastName ? ` (${lastName})` : ""}
+            <Undo size={17} />
+            Undo{lastName ? ` (${lastName})` : ""}
           </button>
         </div>
       </div>

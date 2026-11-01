@@ -24,7 +24,7 @@ export default function GameCanvas({ classroom, roam = false, worldRef, onFps }:
     onFpsRef.current = onFps;
   });
 
-  const { id, worldId, lowGraphics } = classroom;
+  const { id, worldId, lowGraphics, showScores } = classroom;
   const studentsKey = classroom.students.map((s) => s.id + s.name + s.color).join("|");
 
   useEffect(() => {
@@ -37,7 +37,7 @@ export default function GameCanvas({ classroom, roam = false, worldRef, onFps }:
       if (disposed) return;
       const c = getCached(id);
       if (!c) return;
-      world = create({ stage, students: c.students, lowGraphics, timeZone: c.timeZone });
+      world = create({ stage, students: c.students, lowGraphics, timeZone: c.timeZone, showScores });
       world.setTotals(currentTotals(c));
       worldRef.current = world;
       stage.start((dt, t) => world?.tick(dt, t));
@@ -51,7 +51,7 @@ export default function GameCanvas({ classroom, roam = false, worldRef, onFps }:
       world?.dispose();
       stage.dispose();
     };
-  }, [id, worldId, lowGraphics, roam, studentsKey, worldRef]);
+  }, [id, worldId, lowGraphics, showScores, roam, studentsKey, worldRef]);
 
   // Keep totals in sync after undo, resets or edits made elsewhere
   useEffect(() => {

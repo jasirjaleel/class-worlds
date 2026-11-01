@@ -11,7 +11,7 @@ import type { Classroom, PointEvent, Student, WorldId } from "@/lib/types";
 // and dev hot-reloads share one connection and one bus.
 
 export type ClassEvent =
-  | { type: "reward"; studentId: string; amount: number; classroom: Classroom }
+  | { type: "reward"; studentId: string; amount: number; reason: string | null; classroom: Classroom }
   | { type: "changed"; classroom: Classroom };
 
 const g = globalThis as unknown as { cwDb?: DatabaseSync; cwBus?: EventEmitter };
@@ -21,6 +21,7 @@ function open(): DatabaseSync {
   mkdirSync(dir, { recursive: true });
   const db = new DatabaseSync(path.join(dir, "class-worlds.db"));
   db.exec(`
+    PRAGMA busy_timeout = 5000; -- Next.js starts several processes at once: wait, don't fail
     PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
     CREATE TABLE IF NOT EXISTS classrooms (
@@ -47,6 +48,11 @@ function open(): DatabaseSync {
     );
     CREATE INDEX IF NOT EXISTS point_events_class_at ON point_events(class_id, at);
   `);
+  // columns added after the first version, for databases that already exist
+  const hasColumn = (table: string, column: string) =>
+    (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some((c) => c.name === column);
+  if (!hasColumn("classrooms", "show_scores")) db.exec("ALTER TABLE classrooms ADD COLUMN show_scores INTEGER NOT NULL DEFAULT 0");
+  if (!hasColumn("point_events", "reason")) db.exec("ALTER TABLE point_events ADD COLUMN reason TEXT");
   return db;
 }
 
@@ -102,7 +108,7 @@ export function getClassroom(id: string): Classroom {
     .prepare("SELECT id, name, color FROM students WHERE class_id = ? ORDER BY position")
     .all(id) as unknown as Student[];
   const events = db
-    .prepare('SELECT id, student_id AS "studentId", amount, at FROM point_events WHERE class_id = ? ORDER BY at, rowid')
+    .prepare('SELECT id, student_id AS "studentId", amount, at, reason FROM point_events WHERE class_id = ? ORDER BY at, rowid')
     .all(id) as unknown as PointEvent[];
   return {
     id,
@@ -111,6 +117,7 @@ export function getClassroom(id: string): Classroom {
     termStart: row.term_start as number,
     worldId: row.world_id as WorldId,
     lowGraphics: row.low_graphics === 1,
+    showScores: row.show_scores === 1,
     students: students.map((s) => ({ ...s })),
     events: events.map((e) => ({ ...e })),
   };
@@ -122,13 +129,13 @@ function changed(id: string): Classroom {
   return classroom;
 }
 
-export function awardPoints(id: string, studentId: string, amount: number): Classroom {
+export function awardPoints(id: string, studentId: string, amount: number, reason: string | null): Classroom {
   getClassroom(id);
-  db.prepare("INSERT INTO point_events (id, class_id, student_id, amount, at) VALUES (?, ?, ?, ?, ?)").run(
-    newId(), id, studentId, amount, Date.now(),
+  db.prepare("INSERT INTO point_events (id, class_id, student_id, amount, at, reason) VALUES (?, ?, ?, ?, ?, ?)").run(
+    newId(), id, studentId, amount, Date.now(), reason,
   );
   const classroom = getClassroom(id);
-  bus.emit(id, { type: "reward", studentId, amount, classroom } satisfies ClassEvent);
+  bus.emit(id, { type: "reward", studentId, amount, reason, classroom } satisfies ClassEvent);
   return classroom;
 }
 
@@ -141,13 +148,15 @@ export function undoLast(id: string): Classroom {
 
 export function updateSettings(
   id: string,
-  patch: { name?: string; worldId?: WorldId; lowGraphics?: boolean },
+  patch: { name?: string; worldId?: WorldId; lowGraphics?: boolean; showScores?: boolean },
 ): Classroom {
   getClassroom(id);
   if (patch.name !== undefined) db.prepare("UPDATE classrooms SET name = ? WHERE id = ?").run(patch.name, id);
   if (patch.worldId !== undefined) db.prepare("UPDATE classrooms SET world_id = ? WHERE id = ?").run(patch.worldId, id);
   if (patch.lowGraphics !== undefined)
     db.prepare("UPDATE classrooms SET low_graphics = ? WHERE id = ?").run(patch.lowGraphics ? 1 : 0, id);
+  if (patch.showScores !== undefined)
+    db.prepare("UPDATE classrooms SET show_scores = ? WHERE id = ?").run(patch.showScores ? 1 : 0, id);
   return changed(id);
 }
 

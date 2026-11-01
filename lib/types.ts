@@ -19,6 +19,7 @@ export interface PointEvent {
   studentId: string;
   amount: number;
   at: number; // epoch ms
+  reason?: string | null;
 }
 
 export interface Classroom {
@@ -28,6 +29,8 @@ export interface Classroom {
   termStart: number; // epoch ms
   worldId: WorldId;
   lowGraphics: boolean;
+  /** Show each student's points on the class screen. Off by default: no public scores. */
+  showScores: boolean;
   students: Student[];
   events: PointEvent[];
 }

@@ -13,7 +13,7 @@ export default function DinoBook({ classroom, onClose }: { classroom: Classroom;
       <div role="dialog" aria-label="Dino Book" className="cw-panel max-h-full w-full max-w-3xl overflow-y-auto p-4 sm:p-6">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <h2 className="font-display text-2xl text-gold">Dino Book</h2>
+            <h2 className="cw-heading text-2xl text-gold">Dino Book</h2>
             <p className="text-sm text-muted">
               {found} of {SPECIES.length} kinds found · {entries.length} hatched in all
             </p>
@@ -30,7 +30,7 @@ export default function DinoBook({ classroom, onClose }: { classroom: Classroom;
             return (
               <li key={s.id} className={`rounded-xl border border-line p-3 ${hatched.length ? "bg-white/5" : "opacity-60"}`}>
                 <div className="flex items-baseline justify-between gap-2">
-                  <h3 className="font-display text-base">{hatched.length ? s.name : "???"}</h3>
+                  <h3 className="cw-heading text-base">{hatched.length ? s.name : "???"}</h3>
                   {hatched.length > 0 && (
                     <span className="text-xs font-bold text-gold">
                       ×{hatched.length}

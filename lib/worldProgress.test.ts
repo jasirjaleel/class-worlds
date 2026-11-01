@@ -10,23 +10,24 @@ import {
 } from "./worldProgress";
 
 describe("balloonHeight", () => {
-  it("rises with points and stops at the top", () => {
-    expect(balloonHeight(0)).toBe(0);
-    expect(balloonHeight(BALLOON_MAX_POINTS / 2)).toBe(0.5);
+  it("starts off the ground, rises with points and stops at the top", () => {
+    expect(balloonHeight(0)).toBeGreaterThan(0);
+    expect(balloonHeight(1)).toBeGreaterThan(balloonHeight(0));
+    expect(balloonHeight(BALLOON_MAX_POINTS)).toBe(1);
     expect(balloonHeight(BALLOON_MAX_POINTS + 50)).toBe(1);
   });
 });
 
 describe("gardenStage", () => {
-  it("grows at each threshold", () => {
-    expect([0, 1, 2, 3, 6, 10, 15, 20, 29, 30, 99].map(gardenStage)).toEqual([0, 1, 1, 2, 3, 4, 5, 6, 6, 7, 7]);
+  it("starts as a sprout and grows at each threshold", () => {
+    expect([0, 1, 3, 4, 8, 13, 20, 29, 30, 99].map(gardenStage)).toEqual([1, 2, 2, 3, 4, 5, 6, 6, 7, 7]);
   });
 });
 
 describe("cityFloors", () => {
-  it("adds a floor per point up to the limit", () => {
-    expect(cityFloors(0)).toBe(0);
-    expect(cityFloors(7)).toBe(7);
+  it("starts with a free floor and adds one per point up to the limit", () => {
+    expect(cityFloors(0)).toBe(1);
+    expect(cityFloors(7)).toBe(8);
     expect(cityFloors(CITY_MAX_FLOORS + 5)).toBe(CITY_MAX_FLOORS);
   });
 });

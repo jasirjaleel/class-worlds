@@ -6,6 +6,8 @@ export interface WorldContext {
   students: Student[];
   lowGraphics: boolean;
   timeZone: string;
+  /** Show points on name tags. Off by default: no public scores. */
+  showScores: boolean;
 }
 
 /** What every world module returns. The play screen only talks to worlds through this. */

@@ -1,28 +1,30 @@
 // How points turn into progress in each world. Kept apart from the 3D code so it can be tested.
+// Everyone starts with a head start, so no student ever sits on an empty spot at zero.
 
 // --- Hot Air Balloons
 export const BALLOON_CLOUD_POINTS = 5;
 export const BALLOON_MAX_POINTS = 12;
 
-/** 0 on the ground, 1 at the top of the sky. */
+/** Already off the ground at 0 points; 1 is the top of the sky. */
 export function balloonHeight(points: number): number {
-  return Math.min(Math.max(points, 0), BALLOON_MAX_POINTS) / BALLOON_MAX_POINTS;
+  const headStart = 0.6;
+  return (Math.min(Math.max(points, 0), BALLOON_MAX_POINTS) + headStart) / (BALLOON_MAX_POINTS + headStart);
 }
 
 // --- Garden
-export const GARDEN_POINTS = [1, 3, 6, 10, 15, 20, 30];
+export const GARDEN_POINTS = [1, 4, 8, 13, 20, 30];
 export const GARDEN_STAGE_NAMES = ["Seed", "Sprout", "Seedling", "Plant", "Young tree", "Tree", "In flower", "Fruit"];
 
-/** 0 = a seed in the soil, 7 = a tree with fruit. */
+/** 1 = a sprout, already up at 0 points; 7 = a tree with fruit. */
 export function gardenStage(points: number): number {
-  return GARDEN_POINTS.filter((p) => points >= p).length;
+  return 1 + GARDEN_POINTS.filter((p) => points >= p).length;
 }
 
 // --- Build the City
 export const CITY_MAX_FLOORS = 40;
 
 export function cityFloors(points: number): number {
-  return Math.min(Math.max(points, 0), CITY_MAX_FLOORS);
+  return Math.min(Math.max(points, 0) + 1, CITY_MAX_FLOORS); // the ground floor comes free
 }
 
 // --- Ship Voyage: the map is a simple row of stops, not to scale

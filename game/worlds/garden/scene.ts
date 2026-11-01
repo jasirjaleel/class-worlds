@@ -4,7 +4,9 @@ import { hashText } from "@/lib/hash";
 import { goalReached } from "@/lib/points";
 import { GARDEN_STAGE_NAMES, gardenStage } from "@/lib/worldProgress";
 import { buildAvatar } from "../../engine/avatar";
-import { disposeWorld, gridLayout, studentTag, voxelBox } from "../../engine/kit";
+import { addSunlight, addSurroundings, disposeWorld, gridLayout, studentTag, tagName, voxelBox } from "../../engine/kit";
+import { groundMaterial, skyDome, terrainRing } from "../../engine/nature";
+import { playSound } from "../../engine/sound";
 import { createSparks } from "../../engine/sparks";
 import { seeded, voxelMesh, type Voxel } from "../../engine/voxel";
 import { worldMeta } from "../registry";
@@ -89,15 +91,18 @@ function plotVoxels(seed: number): Voxel[] {
   return v;
 }
 
-export const createGarden: CreateWorld = ({ stage, students, lowGraphics }) => {
+export const createGarden: CreateWorld = ({ stage, students, lowGraphics, showScores }) => {
   const world = new THREE.Group();
   stage.scene.add(world);
-  stage.scene.background = new THREE.Color("#a7e3f5");
-  stage.setCameraOffset(new THREE.Vector3(0, 40, 42));
+  skyDome(world, { top: "#2f78c8", horizon: "#e3f2e4" }, [0.5, 0.3, -0.8]);
+  // a long lens looking across the garden, so back rows shrink only a little
+  stage.useDepthCamera(16, new THREE.Vector3(0, 0.62, 1));
+  stage.setDrift(0.006);
+  stage.setDepthFog("#e3f2e4", 25, 280);
   const sparks = createSparks(world);
   const rand = seeded(23);
 
-  const grid = gridLayout(students.length, 5.4, 5.8);
+  const grid = gridLayout(students.length, 5.4, 7.4);
   const halfX = Math.ceil(grid.width / 2) + 2;
   const halfZ = Math.ceil(grid.depth / 2) + 2;
 
@@ -109,12 +114,41 @@ export const createGarden: CreateWorld = ({ stage, students, lowGraphics }) => {
       lawn.push([x, -1, z, r > 0.99 ? "#f9a8d4" : r > 0.98 ? "#fde047" : r > 0.5 ? "#6cc04a" : "#5cb33d"]);
     }
   world.add(voxelMesh(lawn, 1));
-  const earth = new THREE.Mesh(
-    new THREE.BoxGeometry(halfX * 2 + 1, 3, halfZ * 2 + 1),
-    new THREE.MeshLambertMaterial({ color: "#7c4a21" }),
+  // open meadow all the way out into the haze
+  const meadow = new THREE.Mesh(
+    new THREE.BoxGeometry(3000, 2, 3000),
+    groundMaterial(["#4f9d33", "#58a93a", "#63b444"], 120),
   );
-  earth.position.y = -3;
-  world.add(earth);
+  meadow.position.y = -2.1;
+  meadow.receiveShadow = true;
+  world.add(meadow);
+  addSunlight(stage, world, {
+    span: Math.max(halfX, halfZ) + 25,
+    top: Math.max(halfX, halfZ) + 25,
+    lowGraphics,
+    from: [-halfX * 1.6, 38, 30],
+  });
+
+  // a hedge around the garden, and an orchard beyond it
+  const hedge: Voxel[] = [];
+  for (let x = -halfX - 1; x <= halfX + 1; x++) for (let y = -1; y <= 0; y++) hedge.push([x, y, -halfZ - 1, rand() > 0.5 ? "#2f7a35" : "#3f8f3a"]);
+  for (let z = -halfZ; z <= halfZ; z++) {
+    for (const x of [-halfX - 1, halfX + 1]) for (let y = -1; y <= 0; y++) hedge.push([x, y, z, rand() > 0.5 ? "#2f7a35" : "#3f8f3a"]);
+  }
+  world.add(voxelMesh(hedge, 1));
+  addSurroundings(world, {
+    groundY: -1.1,
+    clear: { minX: -halfX - 3, maxX: halfX + 3, minZ: -halfZ - 3, maxZ: 1000 },
+    patchClear: { minX: -halfX - 2, maxX: halfX + 2, minZ: -halfZ - 2, maxZ: halfZ + 2 },
+    reach: 160,
+    trees: 300,
+    kind: "round",
+    leaves: ["#2f7a35", "#3f8f3a", "#256b2d", "#4a9a42"],
+    patches: ["#63b444", "#4f9d33", "#6cbc4d"],
+    seed: 71,
+    lowGraphics,
+  });
+  world.add(terrainRing({ inner: 155, outer: 340, height: 52, colors: ["#4f9040", "#6f8f7c", "#a8b8ae"], seed: 72, lowGraphics, baseY: -1.1 }));
 
   // --- A plot, a plant and a student for each child
   const plots = students.map((s, i) => {
@@ -128,8 +162,9 @@ export const createGarden: CreateWorld = ({ stage, students, lowGraphics }) => {
     plant.position.y = 0.3;
     root.add(plant);
 
-    const avatar = buildAvatar(s.color, i * 7 + s.name.length);
+    const avatar = buildAvatar(s.color);
     avatar.group.position.set(-2.1, 0, 1);
+    avatar.group.scale.setScalar(1.4);
     avatar.group.rotation.y = 0.5;
     root.add(avatar.group);
 
@@ -156,10 +191,11 @@ export const createGarden: CreateWorld = ({ stage, students, lowGraphics }) => {
     return { b, left, right, cx: (rand() - 0.5) * grid.width, cz: (rand() - 0.5) * grid.depth, phase: rand() * 6 };
   });
 
-  stage.fit({ minX: -halfX, maxX: halfX, minZ: -halfZ, maxZ: halfZ + 3, minY: -1, maxY: 5 });
+  stage.fit({ minX: -halfX, maxX: halfX, minZ: -halfZ - 7, maxZ: halfZ + 2, minY: -1, maxY: 5 });
 
   let placed = false;
   let goalDone = false;
+  let goalNow = false;
   const goalPerStudent = worldMeta("garden").goalPerStudent;
 
   return {
@@ -177,12 +213,15 @@ export const createGarden: CreateWorld = ({ stage, students, lowGraphics }) => {
           p.plant.add(p.model);
           p.stage = next;
           const top = Math.max(...voxels.map((v) => v[1]));
-          p.tag.position.set(0, 0.3 + (top + 1) * BLOCK + 0.65, 0);
+          // tall trees keep their tag in the canopy, so it never lands on the row behind
+          p.tag.position.set(0, Math.min(3.2, 0.3 + (top + 1) * BLOCK + 0.65), 0);
         }
         const growth = next === FRUIT_STAGE ? `${p.tree.name} fruit`.replace("Date palm fruit", "Dates") : GARDEN_STAGE_NAMES[next];
-        p.tag.element.textContent = `${p.student.name} ${points}\n${growth}`;
+        p.tag.element.textContent = `${tagName(p.student.name, points, showScores)}\n${growth}`;
       }
-      goalDone = goalReached(totals, students.length, goalPerStudent);
+      const reached = goalReached(totals, students.length, goalPerStudent);
+      goalNow = placed && reached && !goalDone;
+      goalDone = reached;
       for (const f of butterflies) f.b.visible = goalDone;
       placed = true;
     },
@@ -192,6 +231,12 @@ export const createGarden: CreateWorld = ({ stage, students, lowGraphics }) => {
       if (!p || !placed) return;
       p.pop = 1;
       p.wave = 1;
+      playSound("rustle");
+      if (goalNow) {
+        goalNow = false;
+        playSound("breeze", 0.1);
+        playSound("birds", 0.7);
+      }
       const at = p.root.position.clone().setY(1.4);
       sparks.burst(at, "#86efac", p.student.color);
       stage.focusOn(at, 2.8, 2200);

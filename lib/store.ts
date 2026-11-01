@@ -1,3 +1,4 @@
+import type { ReasonId } from "./reasons";
 import type { Classroom, WorldId } from "./types";
 
 // Client side of the classroom data. Reads arrive live from the server's SQLite
@@ -5,11 +6,11 @@ import type { Classroom, WorldId } from "./types";
 // the API. Any phone or screen on the same network sees every change.
 
 export type StoreMessage =
-  | { type: "reward"; studentId: string; amount: number }
+  | { type: "reward"; studentId: string; amount: number; reason: string | null }
   | { type: "changed" };
 
 type ServerEvent =
-  | { type: "reward"; studentId: string; amount: number; classroom: Classroom }
+  | { type: "reward"; studentId: string; amount: number; reason: string | null; classroom: Classroom }
   | { type: "changed"; classroom: Classroom };
 
 const cache = new Map<string, Classroom>();
@@ -37,7 +38,7 @@ export function subscribe(classId: string, onMessage: (msg: StoreMessage) => voi
       deliver(
         classId,
         ev.classroom,
-        ev.type === "reward" ? { type: "reward", studentId: ev.studentId, amount: ev.amount } : { type: "changed" },
+        ev.type === "reward" ? { type: "reward", studentId: ev.studentId, amount: ev.amount, reason: ev.reason } : { type: "changed" },
       );
     };
     streams.set(classId, es);
@@ -64,14 +65,14 @@ async function post(classId: string, body: Record<string, unknown>): Promise<Cla
   return classroom;
 }
 
-export const awardPoints = (classId: string, studentId: string, amount = 1) =>
-  post(classId, { action: "award", studentId, amount });
+export const awardPoints = (classId: string, studentId: string, reason: ReasonId, amount = 1) =>
+  post(classId, { action: "award", studentId, amount, reason });
 
 export const undoLast = (classId: string) => post(classId, { action: "undo" });
 
 export const setWorld = (classId: string, worldId: WorldId) => post(classId, { action: "settings", worldId });
 
-export const updateSettings = (classId: string, patch: { name?: string; lowGraphics?: boolean }) =>
+export const updateSettings = (classId: string, patch: { name?: string; lowGraphics?: boolean; showScores?: boolean }) =>
   post(classId, { action: "settings", ...patch });
 
 export const addStudents = (classId: string, names: string[]) => post(classId, { action: "addStudents", names });
