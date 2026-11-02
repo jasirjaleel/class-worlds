@@ -5,7 +5,7 @@ import { useState } from "react";
 import { signOutAction } from "@/app/auth-actions";
 import { ArrowLeft, Close, SoundOn } from "@/components/Icons";
 import { SOUNDS, previewSound, type SoundName } from "@/game/engine/sound";
-import { addStudents, createClass, deleteClass, removeStudent, updateSettings } from "@/lib/store";
+import { addStudents, createClass, deleteClass, removeStudent, startFresh, updateSettings } from "@/lib/store";
 import { useClassroom } from "@/lib/useClassroom";
 import { useCurrentClass } from "@/lib/useCurrentClass";
 
@@ -124,6 +124,7 @@ function ClassEditor({ classId, onRenamed, onDeleted }: { classId: string; onRen
   const classroom = useClassroom(classId);
   const [names, setNames] = useState("");
   const [nameDraft, setNameDraft] = useState<string | null>(null);
+  const [freshFailed, setFreshFailed] = useState(false);
 
   if (!classroom) return null;
 
@@ -191,6 +192,16 @@ function ClassEditor({ classId, onRenamed, onDeleted }: { classId: string; onRen
         </ul>
       </section>
 
+      <section className="cw-panel mb-4 flex flex-wrap items-center justify-between gap-3 p-5">
+        <div className="min-w-48 flex-1">
+          <h2 className="cw-heading text-base text-white">Progress</h2>
+          <p className="mt-1 text-sm text-muted">Each student&apos;s points this week and last week. Only you can see this.</p>
+        </div>
+        <Link href="/teacher/progress" className="cw-menu-btn !w-auto !py-2.5 text-sm">
+          See progress
+        </Link>
+      </section>
+
       <section className="cw-panel mb-4 flex items-start justify-between gap-4 p-5">
         <div>
           <label htmlFor="show-scores" className="cw-heading text-base text-white">
@@ -224,6 +235,28 @@ function ClassEditor({ classId, onRenamed, onDeleted }: { classId: string; onRen
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="cw-panel mb-4 p-5">
+        <h2 className="cw-heading text-base text-white">Start fresh</h2>
+        <p className="mb-3 mt-1 text-sm text-muted">
+          Puts every student back to zero in every world, for a new term or a new start. Students stay, and Progress keeps all their points.
+        </p>
+        <button
+          onClick={async () => {
+            if (!confirm(`Start ${classroom.name} from zero in every world? Progress keeps their points, but this can't be undone.`)) return;
+            setFreshFailed(false);
+            await startFresh(classId).catch(() => setFreshFailed(true));
+          }}
+          className="cw-menu-btn !w-auto !py-2.5 text-sm"
+        >
+          Start fresh
+        </button>
+        {freshFailed ? (
+          <p role="alert" className="mt-2 text-sm text-red-300">
+            That didn&apos;t save. Check your connection and try again.
+          </p>
+        ) : null}
       </section>
 
       <section className="rounded-2xl border border-line p-5">

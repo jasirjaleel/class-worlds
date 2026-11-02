@@ -26,7 +26,7 @@ export interface Classroom {
   id: string;
   name: string;
   timeZone: string;
-  termStart: number; // epoch ms
+  termStart: number; // epoch ms: when the class was created or last used Start fresh
   worldId: WorldId;
   lowGraphics: boolean;
   /** Show each student's points on the class screen. Off by default: no public scores. */

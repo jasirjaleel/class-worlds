@@ -27,7 +27,7 @@ function Remote() {
   if (!classroom) return <main className="min-h-dvh bg-bg" />;
   const world = worldMeta(classroom.worldId);
   const totals = currentTotals(classroom);
-  const lastEvent = classroom.events.at(-1);
+  const lastEvent = classroom.events.filter((e) => e.at >= classroom.termStart).at(-1);
   const lastName = classroom.students.find((s) => s.id === lastEvent?.studentId)?.name;
 
   const reward = (id: string) => {

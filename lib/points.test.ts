@@ -99,3 +99,14 @@ describe("totalsByStudent", () => {
     expect(totalsByStudent(withUndo, { period: "day", timeZone: DUBAI, now })).toEqual({ leo: 0 });
   });
 });
+
+describe("Start fresh", () => {
+  it("hides earlier points in every period, without deleting them", () => {
+    const now = new Date("2026-11-04T08:00:00Z").getTime();
+    const before = { id: "a", studentId: "leo", amount: 1, at: now - 3_600_000 };
+    const after = { id: "b", studentId: "leo", amount: 1, at: now - 60_000 };
+    for (const period of ["day", "week", "term"] as const) {
+      expect(totalsByStudent([before, after], { period, timeZone: "Asia/Dubai", now, termStart: now - 1_800_000 })).toEqual({ leo: 1 });
+    }
+  });
+});

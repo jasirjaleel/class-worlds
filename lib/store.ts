@@ -134,6 +134,8 @@ export const awardPoints = (classId: string, studentId: string, reason: ReasonId
 
 export const undoLast = (classId: string) => post(classId, { action: "undo" });
 
+export const startFresh = (classId: string) => post(classId, { action: "startFresh" });
+
 export const setWorld = (classId: string, worldId: WorldId) => post(classId, { action: "settings", worldId });
 
 export const updateSettings = (classId: string, patch: { name?: string; lowGraphics?: boolean; showScores?: boolean }) =>

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { classrooms, pointEvents, students } from "@/db/schema";
 import { insertStudents } from "@/db/seed";
@@ -72,10 +72,17 @@ export async function undoLast(id: string): Promise<Classroom> {
   const [last] = await db
     .select({ id: pointEvents.id })
     .from(pointEvents)
-    .where(eq(pointEvents.classId, id))
+    // points from before Start fresh are history, so Undo stops there
+    .where(and(eq(pointEvents.classId, id), gte(pointEvents.at, sql`(select ${classrooms.termStart} from ${classrooms} where ${classrooms.id} = ${id})`)))
     .orderBy(desc(pointEvents.at), desc(pointEvents.seq))
     .limit(1);
   if (last) await db.delete(pointEvents).where(eq(pointEvents.id, last.id));
+  return changed(id);
+}
+
+/** Every world counts from zero again. The points stay saved for the Progress page. */
+export async function startFresh(id: string): Promise<Classroom> {
+  await getDb().update(classrooms).set({ termStart: Date.now() }).where(eq(classrooms.id, id));
   return changed(id);
 }
 

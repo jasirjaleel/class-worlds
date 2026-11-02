@@ -30,13 +30,15 @@ export interface PeriodOptions {
 }
 
 export function isInPeriod(at: number, opts: PeriodOptions): boolean {
+  // Start fresh moves termStart, so every period counts from there at the earliest
+  if (at < (opts.termStart ?? 0)) return false;
   switch (opts.period) {
     case "day":
       return localDateKey(at, opts.timeZone) === localDateKey(opts.now, opts.timeZone);
     case "week":
       return localWeekKey(at, opts.timeZone) === localWeekKey(opts.now, opts.timeZone);
     case "term":
-      return at >= (opts.termStart ?? 0) && at <= opts.now;
+      return at <= opts.now;
   }
 }
 

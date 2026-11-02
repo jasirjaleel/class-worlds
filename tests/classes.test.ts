@@ -144,3 +144,37 @@ describe("sample class", () => {
     expect((await read(id)).status).toBe(404);
   });
 });
+
+describe("start fresh", () => {
+  const award = async (id: string, studentId: string) => (await act(id, { action: "award", studentId, reason: "homework" })).json() as Promise<Classroom>;
+
+  it("moves the class's start date and keeps every point and student", async () => {
+    const c = await withStudents();
+    await award(c.id, c.students[0].id);
+    await new Promise((r) => setTimeout(r, 5));
+    const after: Classroom = await (await act(c.id, { action: "startFresh" })).json();
+    expect(after.termStart).toBeGreaterThan(c.termStart);
+    expect(after.events).toHaveLength(1);
+    expect(after.students).toHaveLength(2);
+    expect(broadcastChange).toHaveBeenCalled();
+  });
+
+  it("leaves points from before it alone when undoing", async () => {
+    const c = await withStudents();
+    await award(c.id, c.students[0].id);
+    await new Promise((r) => setTimeout(r, 5));
+    await act(c.id, { action: "startFresh" });
+    await new Promise((r) => setTimeout(r, 5));
+    await award(c.id, c.students[1].id);
+    const once: Classroom = await (await act(c.id, { action: "undo" })).json();
+    expect(once.events.map((e) => e.studentId)).toEqual([c.students[0].id]);
+    const twice: Classroom = await (await act(c.id, { action: "undo" })).json();
+    expect(twice.events).toHaveLength(1);
+  });
+
+  it("can't be used on another teacher's class", async () => {
+    const c = await withStudents();
+    signedIn = TEACHER_B;
+    expect((await act(c.id, { action: "startFresh" })).status).toBe(404);
+  });
+});

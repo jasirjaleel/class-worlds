@@ -8,6 +8,7 @@ import {
   deleteClass,
   getClassroom,
   removeStudent,
+  startFresh,
   undoLast,
   updateSettings,
 } from "@/lib/server/db";
@@ -40,6 +41,8 @@ export async function POST(req: NextRequest, ctx: RouteContext<"/api/classes/[id
     }
     case "undo":
       return NextResponse.json(await undoLast(id));
+    case "startFresh":
+      return NextResponse.json(await startFresh(id));
     case "settings": {
       const patch: { name?: string; worldId?: WorldId; lowGraphics?: boolean; showScores?: boolean } = {};
       if (typeof body.name === "string") patch.name = body.name.slice(0, 60);
