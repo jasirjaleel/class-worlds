@@ -9,15 +9,15 @@ import { startMenuBackdrop } from "@/game/scenes/menuBackdrop";
 import { WORLDS, worldMeta } from "@/game/worlds/registry";
 import { setWorld } from "@/lib/store";
 import { useClassroom } from "@/lib/useClassroom";
-
-const CLASS_ID = "demo";
+import { useCurrentClass } from "@/lib/useCurrentClass";
 
 const READY_COUNT = WORLDS.filter((w) => w.ready).length;
 
 export default function MainMenu() {
   const router = useRouter();
   const backdrop = useRef<HTMLDivElement>(null);
-  const classroom = useClassroom(CLASS_ID);
+  const { loading, signedIn, classId } = useCurrentClass();
+  const classroom = useClassroom(classId);
   const lowGraphics = classroom?.lowGraphics ?? false;
 
   useEffect(() => {
@@ -27,12 +27,14 @@ export default function MainMenu() {
 
   const world = classroom ? worldMeta(classroom.worldId) : null;
 
-  const items: { label: string; href?: string; hint: string }[] = [
+  const items: { label: string; href: string; hint: string }[] = [
     { label: "World select", href: "/worlds", hint: READY_COUNT === WORLDS.length ? `${WORLDS.length} worlds` : `${READY_COUNT} ready · ${WORLDS.length - READY_COUNT} soon` },
-    { label: "Term journey", hint: "Soon" },
-    { label: "Free roam", href: `/play/${CLASS_ID}?roam=1`, hint: "Fly around" },
+    { label: "Free roam", href: `/play/${classId}?roam=1`, hint: "Fly around" },
     { label: "Teacher", href: "/teacher", hint: "Class & students" },
   ];
+
+  // Without a class to play, the worlds lead to wherever the teacher can get one
+  const startHref = !signedIn ? "/sign-in" : "/teacher";
 
   return (
     <main className="relative flex min-h-dvh w-full flex-col overflow-x-hidden">
@@ -56,25 +58,27 @@ export default function MainMenu() {
         </div>
 
         <nav className="cw-rise flex flex-col gap-2" style={{ animationDelay: "90ms" }} aria-label="Main menu">
-          <Link href={`/play/${CLASS_ID}`} className="cw-menu-btn cw-menu-btn-primary">
-            <span>Play class world</span>
-            <span className="flex items-center gap-2 text-sm font-semibold">
-              {world?.name}
-              <ArrowRight size={18} />
-            </span>
-          </Link>
-          {items.map((item) =>
-            item.href ? (
-              <Link key={item.label} href={item.href} className="cw-menu-btn !py-2.5 text-[0.95rem]">
-                <span>{item.label}</span>
-                <span className="text-xs font-medium text-muted">{item.hint}</span>
+          {loading ? null : classId ? (
+            <>
+              <Link href={`/play/${classId}`} className="cw-menu-btn cw-menu-btn-primary">
+                <span>Play class world</span>
+                <span className="flex items-center gap-2 text-sm font-semibold">
+                  {world?.name}
+                  <ArrowRight size={18} />
+                </span>
               </Link>
-            ) : (
-              <span key={item.label} className="cw-menu-btn !py-2.5 text-[0.95rem]" aria-disabled="true">
-                <span>{item.label}</span>
-                <span className="text-xs font-medium">{item.hint}</span>
-              </span>
-            ),
+              {items.map((item) => (
+                <Link key={item.label} href={item.href} className="cw-menu-btn !py-2.5 text-[0.95rem]">
+                  <span>{item.label}</span>
+                  <span className="text-xs font-medium text-muted">{item.hint}</span>
+                </Link>
+              ))}
+            </>
+          ) : (
+            <Link href={startHref} className="cw-menu-btn cw-menu-btn-primary">
+              <span>{signedIn ? "Create your first class" : "Teacher sign in"}</span>
+              <ArrowRight size={18} />
+            </Link>
           )}
         </nav>
       </div>
@@ -85,7 +89,10 @@ export default function MainMenu() {
             Choose a world
           </h2>
           <p className="text-xs text-muted">
-            {classroom ? `${classroom.name} · ${classroom.students.length} students · ` : ""}First names only · No student accounts · No ads
+            {classroom ? `${classroom.name} · ${classroom.students.length} students · ` : ""}First names only · No student accounts · No ads ·{" "}
+            <Link href="/privacy" className="underline underline-offset-2 hover:text-white">
+              Privacy
+            </Link>
           </p>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -96,8 +103,9 @@ export default function MainMenu() {
               active={classroom?.worldId === w.id}
               sizes="(min-width: 1024px) 16vw, (min-width: 640px) 33vw, 50vw"
               onSelect={() => {
-                setWorld(CLASS_ID, w.id);
-                router.push(`/play/${CLASS_ID}`);
+                if (!classId) return router.push(startHref);
+                setWorld(classId, w.id);
+                router.push(`/play/${classId}`);
               }}
             />
           ))}

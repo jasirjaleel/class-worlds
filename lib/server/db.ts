@@ -1,177 +1,104 @@
 import "server-only";
-import { mkdirSync } from "node:fs";
-import path from "node:path";
-import { EventEmitter } from "node:events";
-import { DatabaseSync } from "node:sqlite";
-import { DEMO_NAMES, STUDENT_COLORS, newId } from "@/lib/demo";
-import type { Classroom, PointEvent, Student, WorldId } from "@/lib/types";
+import { and, asc, desc, eq } from "drizzle-orm";
+import { getDb } from "@/db";
+import { classrooms, pointEvents, students } from "@/db/schema";
+import { insertStudents } from "@/db/seed";
+import type { Classroom, WorldId } from "@/lib/types";
+import { broadcastChange } from "./realtime";
 
-// Local SQLite database (data/class-worlds.db) plus an in-process event bus that
-// pushes every change to open screens. Kept on globalThis so all route bundles
-// and dev hot-reloads share one connection and one bus.
+// Classes, students and points in Postgres. Who may touch which class is decided
+// in lib/server/access.ts before any of these run.
 
-export type ClassEvent =
-  | { type: "reward"; studentId: string; amount: number; reason: string | null; classroom: Classroom }
-  | { type: "changed"; classroom: Classroom };
-
-const g = globalThis as unknown as { cwDb?: DatabaseSync; cwBus?: EventEmitter };
-
-function open(): DatabaseSync {
-  const dir = path.join(process.cwd(), "data");
-  mkdirSync(dir, { recursive: true });
-  const db = new DatabaseSync(path.join(dir, "class-worlds.db"));
-  db.exec(`
-    PRAGMA busy_timeout = 5000; -- Next.js starts several processes at once: wait, don't fail
-    PRAGMA journal_mode = WAL;
-    PRAGMA foreign_keys = ON;
-    CREATE TABLE IF NOT EXISTS classrooms (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      time_zone TEXT NOT NULL,
-      term_start INTEGER NOT NULL,
-      world_id TEXT NOT NULL,
-      low_graphics INTEGER NOT NULL DEFAULT 0
-    );
-    CREATE TABLE IF NOT EXISTS students (
-      id TEXT PRIMARY KEY,
-      class_id TEXT NOT NULL REFERENCES classrooms(id) ON DELETE CASCADE,
-      name TEXT NOT NULL,
-      color TEXT NOT NULL,
-      position INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS point_events (
-      id TEXT PRIMARY KEY,
-      class_id TEXT NOT NULL REFERENCES classrooms(id) ON DELETE CASCADE,
-      student_id TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-      amount INTEGER NOT NULL,
-      at INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS point_events_class_at ON point_events(class_id, at);
-  `);
-  // columns added after the first version, for databases that already exist
-  const hasColumn = (table: string, column: string) =>
-    (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some((c) => c.name === column);
-  if (!hasColumn("classrooms", "show_scores")) db.exec("ALTER TABLE classrooms ADD COLUMN show_scores INTEGER NOT NULL DEFAULT 0");
-  if (!hasColumn("point_events", "reason")) db.exec("ALTER TABLE point_events ADD COLUMN reason TEXT");
-  return db;
+export async function isOwner(ownerId: string, id: string): Promise<boolean> {
+  const [row] = await getDb()
+    .select({ id: classrooms.id })
+    .from(classrooms)
+    .where(and(eq(classrooms.id, id), eq(classrooms.ownerId, ownerId)));
+  return !!row;
 }
 
-export const db = (g.cwDb ??= open());
-export const bus = (g.cwBus ??= new EventEmitter().setMaxListeners(500));
-
-function tx<T>(fn: () => T): T {
-  db.exec("BEGIN");
-  try {
-    const out = fn();
-    db.exec("COMMIT");
-    return out;
-  } catch (e) {
-    db.exec("ROLLBACK");
-    throw e;
-  }
+export function listClasses(ownerId: string): Promise<{ id: string; name: string }[]> {
+  return getDb()
+    .select({ id: classrooms.id, name: classrooms.name })
+    .from(classrooms)
+    .where(eq(classrooms.ownerId, ownerId))
+    .orderBy(asc(classrooms.name), asc(classrooms.id));
 }
 
-function insertStudents(classId: string, names: string[]) {
-  const start = (db.prepare("SELECT COUNT(*) n FROM students WHERE class_id = ?").get(classId) as { n: number }).n;
-  const ins = db.prepare("INSERT INTO students (id, class_id, name, color, position) VALUES (?, ?, ?, ?, ?)");
-  names.forEach((name, i) => {
-    const pos = start + i;
-    ins.run(newId(), classId, name.trim(), STUDENT_COLORS[pos % STUDENT_COLORS.length], pos);
-  });
+export async function createClass(ownerId: string, name: string): Promise<Classroom> {
+  const [row] = await getDb().insert(classrooms).values({ ownerId, name, termStart: Date.now() }).returning({ id: classrooms.id });
+  return (await getClassroom(row.id)) as Classroom;
 }
 
-function createClass(id: string) {
-  const now = Date.now();
-  const demo = id === "demo";
-  tx(() => {
-    db.prepare(
-      "INSERT INTO classrooms (id, name, time_zone, term_start, world_id, low_graphics) VALUES (?, ?, 'Asia/Dubai', ?, 'space-fleet', 0)",
-    ).run(id, demo ? "Grade 3 Falcons" : "My Class", demo ? now - 60 * 86_400_000 : now);
-    if (!demo) return;
-    insertStudents(id, DEMO_NAMES);
-    // A few points from earlier today so the world isn't empty
-    const students = db.prepare("SELECT id FROM students WHERE class_id = ? ORDER BY position").all(id) as { id: string }[];
-    const ins = db.prepare("INSERT INTO point_events (id, class_id, student_id, amount, at) VALUES (?, ?, ?, 1, ?)");
-    students.forEach((s, i) => {
-      for (let k = 0; k < (i * 7) % 13; k++) ins.run(newId(), id, s.id, now - (k + 1) * 60_000);
-    });
-  });
-}
-
-export function getClassroom(id: string): Classroom {
-  let row = db.prepare("SELECT * FROM classrooms WHERE id = ?").get(id) as Record<string, unknown> | undefined;
-  if (!row) {
-    createClass(id);
-    row = db.prepare("SELECT * FROM classrooms WHERE id = ?").get(id) as Record<string, unknown>;
-  }
-  const students = db
-    .prepare("SELECT id, name, color FROM students WHERE class_id = ? ORDER BY position")
-    .all(id) as unknown as Student[];
-  const events = db
-    .prepare('SELECT id, student_id AS "studentId", amount, at, reason FROM point_events WHERE class_id = ? ORDER BY at, rowid')
-    .all(id) as unknown as PointEvent[];
+export async function getClassroom(id: string): Promise<Classroom | null> {
+  const db = getDb();
+  const [row] = await db.select().from(classrooms).where(eq(classrooms.id, id));
+  if (!row) return null;
+  const studentRows = await db
+    .select({ id: students.id, name: students.name, color: students.color })
+    .from(students)
+    .where(eq(students.classId, id))
+    .orderBy(asc(students.position));
+  const events = await db
+    .select({ id: pointEvents.id, studentId: pointEvents.studentId, amount: pointEvents.amount, at: pointEvents.at, reason: pointEvents.reason })
+    .from(pointEvents)
+    .where(eq(pointEvents.classId, id))
+    .orderBy(asc(pointEvents.at), asc(pointEvents.seq));
   return {
     id,
-    name: row.name as string,
-    timeZone: row.time_zone as string,
-    termStart: row.term_start as number,
-    worldId: row.world_id as WorldId,
-    lowGraphics: row.low_graphics === 1,
-    showScores: row.show_scores === 1,
-    students: students.map((s) => ({ ...s })),
-    events: events.map((e) => ({ ...e })),
+    name: row.name,
+    timeZone: row.timeZone,
+    termStart: row.termStart,
+    worldId: row.worldId as WorldId,
+    lowGraphics: row.lowGraphics,
+    showScores: row.showScores,
+    students: studentRows,
+    events,
   };
 }
 
-function changed(id: string): Classroom {
-  const classroom = getClassroom(id);
-  bus.emit(id, { type: "changed", classroom } satisfies ClassEvent);
-  return classroom;
+async function changed(id: string): Promise<Classroom> {
+  await broadcastChange(id);
+  return (await getClassroom(id)) as Classroom;
 }
 
-export function awardPoints(id: string, studentId: string, amount: number, reason: string | null): Classroom {
-  getClassroom(id);
-  db.prepare("INSERT INTO point_events (id, class_id, student_id, amount, at, reason) VALUES (?, ?, ?, ?, ?, ?)").run(
-    newId(), id, studentId, amount, Date.now(), reason,
-  );
-  const classroom = getClassroom(id);
-  bus.emit(id, { type: "reward", studentId, amount, reason, classroom } satisfies ClassEvent);
-  return classroom;
-}
-
-export function undoLast(id: string): Classroom {
-  db.prepare(
-    "DELETE FROM point_events WHERE rowid = (SELECT rowid FROM point_events WHERE class_id = ? ORDER BY at DESC, rowid DESC LIMIT 1)",
-  ).run(id);
+export async function awardPoints(id: string, studentId: string, amount: number, reason: string | null): Promise<Classroom> {
+  await getDb().insert(pointEvents).values({ classId: id, studentId, amount, at: Date.now(), reason });
   return changed(id);
 }
 
-export function updateSettings(
+export async function undoLast(id: string): Promise<Classroom> {
+  const db = getDb();
+  const [last] = await db
+    .select({ id: pointEvents.id })
+    .from(pointEvents)
+    .where(eq(pointEvents.classId, id))
+    .orderBy(desc(pointEvents.at), desc(pointEvents.seq))
+    .limit(1);
+  if (last) await db.delete(pointEvents).where(eq(pointEvents.id, last.id));
+  return changed(id);
+}
+
+export async function updateSettings(
   id: string,
   patch: { name?: string; worldId?: WorldId; lowGraphics?: boolean; showScores?: boolean },
-): Classroom {
-  getClassroom(id);
-  if (patch.name !== undefined) db.prepare("UPDATE classrooms SET name = ? WHERE id = ?").run(patch.name, id);
-  if (patch.worldId !== undefined) db.prepare("UPDATE classrooms SET world_id = ? WHERE id = ?").run(patch.worldId, id);
-  if (patch.lowGraphics !== undefined)
-    db.prepare("UPDATE classrooms SET low_graphics = ? WHERE id = ?").run(patch.lowGraphics ? 1 : 0, id);
-  if (patch.showScores !== undefined)
-    db.prepare("UPDATE classrooms SET show_scores = ? WHERE id = ?").run(patch.showScores ? 1 : 0, id);
+): Promise<Classroom> {
+  if (Object.keys(patch).length) await getDb().update(classrooms).set(patch).where(eq(classrooms.id, id));
   return changed(id);
 }
 
-export function addStudents(id: string, names: string[]): Classroom {
-  getClassroom(id);
-  tx(() => insertStudents(id, names));
+export async function addStudents(id: string, names: string[]): Promise<Classroom> {
+  await getDb().transaction((tx) => insertStudents(tx, id, names));
   return changed(id);
 }
 
-export function removeStudent(id: string, studentId: string): Classroom {
-  db.prepare("DELETE FROM students WHERE id = ? AND class_id = ?").run(studentId, id);
+export async function removeStudent(id: string, studentId: string): Promise<Classroom> {
+  await getDb().delete(students).where(and(eq(students.id, studentId), eq(students.classId, id)));
   return changed(id);
 }
 
-export function resetClass(id: string): Classroom {
-  db.prepare("DELETE FROM classrooms WHERE id = ?").run(id);
-  return changed(id); // recreated (and re-seeded for the demo) on read
+/** Removes the class with its students and points. Open screens find out and leave. */
+export async function deleteClass(id: string): Promise<void> {
+  await getDb().delete(classrooms).where(eq(classrooms.id, id));
+  await broadcastChange(id);
 }

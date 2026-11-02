@@ -18,7 +18,7 @@ export function currentTotals(c: Classroom, now = Date.now()) {
 
 /** Live classroom from the server. `onReward` fires as soon as any device awards points. */
 export function useClassroom(
-  classId: string,
+  classId: string | null,
   onReward?: (msg: Extract<StoreMessage, { type: "reward" }>) => void,
 ): Classroom | null {
   const onRewardRef = useRef(onReward);
@@ -27,13 +27,15 @@ export function useClassroom(
   });
 
   const subscribeStore = useCallback(
-    (notify: () => void) =>
-      subscribe(classId, (msg) => {
+    (notify: () => void) => {
+      if (!classId) return () => {};
+      return subscribe(classId, (msg) => {
         if (msg.type === "reward") onRewardRef.current?.(msg);
         notify();
-      }),
+      });
+    },
     [classId],
   );
 
-  return useSyncExternalStore(subscribeStore, () => getCached(classId), () => null);
+  return useSyncExternalStore(subscribeStore, () => (classId ? getCached(classId) : null), () => null);
 }

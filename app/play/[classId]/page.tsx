@@ -98,13 +98,13 @@ function PlayScreen() {
   const [remoteUrl, setRemoteUrl] = useState("");
   useEffect(() => {
     if (!showRemote) return;
-    // Phones can't open "localhost", so point the QR code at this computer's Wi-Fi address
-    fetch("/api/lan")
-      .then((r) => r.json())
-      .then(({ ip }: { ip: string | null }) => {
-        const { protocol, hostname, port } = window.location;
-        const host = hostname === "localhost" || hostname === "127.0.0.1" ? (ip ?? hostname) : hostname;
-        const url = `${protocol}//${host}${port ? `:${port}` : ""}/remote/${classId}`;
+    const { protocol, hostname, port } = window.location;
+    // Phones can't open "localhost", so in development point the QR code at this computer's Wi-Fi address
+    const local = hostname === "localhost" || hostname === "127.0.0.1";
+    const lanIp: Promise<string | null> = local ? fetch("/api/lan").then((r) => r.json()).then((d: { ip: string | null }) => d.ip) : Promise.resolve(null);
+    lanIp
+      .then((ip) => {
+        const url = `${protocol}//${ip ?? hostname}${port ? `:${port}` : ""}/remote/${classId}`;
         setRemoteUrl(url);
         return QRCode.toDataURL(url, { margin: 1, width: 220 });
       })
@@ -188,7 +188,7 @@ function PlayScreen() {
           <p className="cw-heading mb-3 text-base text-white">Scan with your phone</p>
           {qr && <img src={qr} alt="QR code for the remote" className="mb-3 w-full rounded-xl bg-white p-2" />}
           {remoteUrl && <p className="mb-2 break-all font-mono text-[0.6875rem] text-gold">{remoteUrl}</p>}
-          <p className="text-xs leading-snug text-muted">Your phone must be on the same Wi-Fi as this computer.</p>
+          <p className="text-xs leading-snug text-muted">Sign in on your phone once and it stays signed in. A student who scans this only sees the sign-in page.</p>
         </div>
       )}
 

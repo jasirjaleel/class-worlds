@@ -7,8 +7,7 @@ import WorldCard from "@/components/WorldCard";
 import { WORLDS, type WorldCategory } from "@/game/worlds/registry";
 import { setWorld } from "@/lib/store";
 import { useClassroom } from "@/lib/useClassroom";
-
-const CLASS_ID = "demo";
+import { useCurrentClass } from "@/lib/useCurrentClass";
 
 const SECTIONS: { id: WorldCategory; title: string; blurb: string }[] = [
   { id: "me", title: "Me worlds", blurb: "Every student grows their own." },
@@ -19,7 +18,8 @@ const RESET_LABEL = { day: "Resets daily", week: "Resets weekly", term: "Lasts a
 
 export default function WorldSelect() {
   const router = useRouter();
-  const classroom = useClassroom(CLASS_ID);
+  const { classId } = useCurrentClass();
+  const classroom = useClassroom(classId);
 
   return (
     <main className="mx-auto min-h-dvh max-w-7xl px-4 py-8 sm:px-8 sm:py-12">
@@ -47,8 +47,9 @@ export default function WorldSelect() {
                   active={classroom?.worldId === w.id}
                   sizes={section.id === "me" ? "(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw" : "(min-width: 640px) 50vw, 100vw"}
                   onSelect={() => {
-                    setWorld(CLASS_ID, w.id);
-                    router.push(`/play/${CLASS_ID}`);
+                    if (!classId) return router.push("/teacher");
+                    setWorld(classId, w.id);
+                    router.push(`/play/${classId}`);
                   }}
                 />
                 <p className="mt-2.5 text-sm leading-snug text-text/85">{w.tagline}</p>

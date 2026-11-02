@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Class Worlds
 
-## Getting Started
+A classroom reward game. The teacher rewards students from a phone, and the class's world grows on the big screen. One game, six worlds, no student accounts.
 
-First, run the development server:
+Built with Next.js, Three.js, Supabase (login, Postgres, live updates) and Vercel.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Set up
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+1. Create a Supabase project. In **Authentication > Sign In / Providers**, turn off **Allow new users to sign up**. Teachers are added by command instead.
+2. Copy `.env.example` to `.env.local` and fill it in from the project.
+3. Install and create the tables:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+   ```bash
+   npm install
+   npm run db:migrate
+   ```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. Add a teacher. The temporary password is printed in your terminal, and nothing is emailed. They choose their own password at first sign-in.
 
-## Learn More
+   ```bash
+   npm run add-teacher -- teacher@school.ae
+   ```
 
-To learn more about Next.js, take a look at the following resources:
+5. Run it:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+   ```bash
+   npm run dev
+   ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Everyday commands
 
-## Deploy on Vercel
+| Command | What it does |
+|---|---|
+| `npm run add-teacher -- email` | Adds a teacher and prints a temporary password |
+| `npm run add-teacher -- email --reset` | Gives a teacher who forgot their password a new temporary one |
+| `npm run seed-demo -- email` | Adds a sample class to that teacher's account, for showing the game to someone |
+| `npm run db:generate` | Creates a migration after changing `db/schema.ts` |
+| `npm test` | Runs the tests, using an in-memory database |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## How it fits together
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Points are the truth and worlds are the skin.** `point_events` drives everything, so switching world keeps every student's points.
+- **Permissions:** every class request goes through `lib/server/access.ts`, which checks that the signed-in teacher owns the class. The browser can't read the tables directly.
+- **Live updates:** after each change the server sends "something changed" on a private Supabase Realtime channel. Screens then fetch the class from our API. If a school network blocks the live channel, screens fetch every 10 seconds instead, and rewards still play.

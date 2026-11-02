@@ -22,6 +22,7 @@ function Remote() {
   const classroom = useClassroom(classId);
   const [flash, setFlash] = useState<string | null>(null);
   const [reason, setReason] = useState<ReasonId>(DEFAULT_REASON);
+  const [failed, setFailed] = useState(false);
 
   if (!classroom) return <main className="min-h-dvh bg-bg" />;
   const world = worldMeta(classroom.worldId);
@@ -30,7 +31,8 @@ function Remote() {
   const lastName = classroom.students.find((s) => s.id === lastEvent?.studentId)?.name;
 
   const reward = (id: string) => {
-    awardPoints(classId, id, reason);
+    setFailed(false);
+    awardPoints(classId, id, reason).catch(() => setFailed(true));
     navigator.vibrate?.(30);
     setFlash(id);
     setTimeout(() => setFlash((f) => (f === id ? null : f)), 400);
@@ -38,6 +40,11 @@ function Remote() {
 
   return (
     <main className="mx-auto min-h-dvh max-w-lg px-4 pb-28 pt-6">
+      {failed ? (
+        <p role="alert" className="mb-3 rounded-xl border border-red-300/30 bg-red-400/10 px-3 py-2 text-sm text-red-200">
+          That didn&apos;t save. Check your connection and tap again.
+        </p>
+      ) : null}
       <header className="mb-5">
         <p className="cw-eyebrow">Remote · {classroom.name}</p>
         <h1 className="cw-title mt-2 text-3xl text-white">{world.name}</h1>
@@ -95,7 +102,10 @@ function Remote() {
         <div className="mx-auto max-w-lg">
           <button
             disabled={!lastEvent}
-            onClick={() => undoLast(classId)}
+            onClick={() => {
+              setFailed(false);
+              undoLast(classId).catch(() => setFailed(true));
+            }}
             className="cw-menu-btn !justify-center font-semibold disabled:opacity-40"
           >
             <Undo size={17} />

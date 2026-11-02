@@ -2,26 +2,23 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { signOutAction } from "@/app/auth-actions";
 import { ArrowLeft, Close, SoundOn } from "@/components/Icons";
 import { SOUNDS, previewSound, type SoundName } from "@/game/engine/sound";
-import { addStudents, removeStudent, resetClass, updateSettings } from "@/lib/store";
+import { addStudents, createClass, deleteClass, removeStudent, updateSettings } from "@/lib/store";
 import { useClassroom } from "@/lib/useClassroom";
-
-const CLASS_ID = "demo";
+import { useCurrentClass } from "@/lib/useCurrentClass";
 
 export default function Teacher() {
-  const classroom = useClassroom(CLASS_ID);
-  const [names, setNames] = useState("");
-  const [nameDraft, setNameDraft] = useState<string | null>(null);
+  const current = useCurrentClass();
+  const [adding, setAdding] = useState(false);
 
-  if (!classroom) return <main className="min-h-dvh bg-bg" />;
+  if (current.loading) return <main className="min-h-dvh bg-bg" />;
 
-  // Accepts one name, or a column pasted from Excel / a comma list
-  const submitNames = () => {
-    const list = names.split(/[\n,\t]+/).map((n) => n.trim()).filter(Boolean);
-    if (!list.length) return;
-    addStudents(CLASS_ID, list);
-    setNames("");
+  const onCreated = async (id: string) => {
+    current.select(id);
+    await current.reload();
+    setAdding(false);
   };
 
   return (
@@ -37,6 +34,109 @@ export default function Teacher() {
         </Link>
       </header>
 
+      {current.classes.length > 0 && !adding ? (
+        <section className="cw-panel mb-4 flex flex-wrap items-end gap-3 p-5">
+          <label className="min-w-48 flex-1 text-sm font-semibold text-white">
+            Class
+            <select value={current.classId ?? ""} onChange={(e) => current.select(e.target.value)} className="cw-input mt-1.5">
+              {current.classes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button onClick={() => setAdding(true)} className="cw-menu-btn !w-auto !py-2.5 text-sm">
+            New class
+          </button>
+        </section>
+      ) : (
+        <NewClass first={current.classes.length === 0} onCreated={onCreated} onCancel={() => setAdding(false)} />
+      )}
+
+      {current.classId && !adding ? (
+        <ClassEditor
+          key={current.classId}
+          classId={current.classId}
+          onRenamed={current.reload}
+          onDeleted={current.reload}
+        />
+      ) : null}
+
+      <section className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+        <form action={signOutAction}>
+          <button type="submit" className="text-muted underline underline-offset-2 hover:text-white">
+            Sign out
+          </button>
+        </form>
+        <Link href="/change-password" className="text-muted underline underline-offset-2 hover:text-white">
+          Change password
+        </Link>
+        <Link href="/privacy" className="text-muted underline underline-offset-2 hover:text-white">
+          Privacy
+        </Link>
+      </section>
+    </main>
+  );
+}
+
+function NewClass({ first, onCreated, onCancel }: { first: boolean; onCreated: (id: string) => Promise<void>; onCancel: () => void }) {
+  const [name, setName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setError(null);
+    try {
+      await onCreated((await createClass(name.trim())).id);
+    } catch {
+      setError("That didn't save. Check your connection and try again.");
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="cw-panel mb-4 p-5">
+      <label htmlFor="new-class" className="cw-heading text-base text-white">
+        {first ? "Create your first class" : "New class"}
+      </label>
+      <div className="mt-2 flex items-start gap-2">
+        <input id="new-class" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Grade 3 Falcons" maxLength={60} className="cw-input flex-1" />
+        <button type="submit" className="cw-menu-btn cw-menu-btn-primary !w-auto !py-2.5 text-sm">
+          Create
+        </button>
+        {first ? null : (
+          <button type="button" onClick={onCancel} className="cw-menu-btn !w-auto !py-2.5 text-sm">
+            Cancel
+          </button>
+        )}
+      </div>
+      {error ? (
+        <p role="alert" className="mt-2 text-sm text-red-300">
+          {error}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
+function ClassEditor({ classId, onRenamed, onDeleted }: { classId: string; onRenamed: () => Promise<void>; onDeleted: () => Promise<void> }) {
+  const classroom = useClassroom(classId);
+  const [names, setNames] = useState("");
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
+
+  if (!classroom) return null;
+
+  // Accepts one name, or a column pasted from Excel / a comma list
+  const submitNames = () => {
+    const list = names.split(/[\n,\t]+/).map((n) => n.trim()).filter(Boolean);
+    if (!list.length) return;
+    addStudents(classId, list);
+    setNames("");
+  };
+
+  return (
+    <>
       <section className="cw-panel mb-4 p-5">
         <label className="cw-heading text-base text-white" htmlFor="class-name">
           Class name
@@ -46,7 +146,7 @@ export default function Teacher() {
           value={nameDraft ?? classroom.name}
           onChange={(e) => setNameDraft(e.target.value)}
           onBlur={() => {
-            if (nameDraft !== null && nameDraft.trim()) updateSettings(CLASS_ID, { name: nameDraft.trim() });
+            if (nameDraft !== null && nameDraft.trim()) updateSettings(classId, { name: nameDraft.trim() }).then(onRenamed);
             setNameDraft(null);
           }}
           className="cw-input mt-2"
@@ -81,7 +181,7 @@ export default function Teacher() {
               {s.name}
               <button
                 aria-label={`Remove ${s.name}`}
-                onClick={() => removeStudent(CLASS_ID, s.id)}
+                onClick={() => removeStudent(classId, s.id)}
                 className="rounded-full p-0.5 text-muted transition hover:text-red-300"
               >
                 <Close size={14} />
@@ -104,7 +204,7 @@ export default function Teacher() {
           id="show-scores"
           type="checkbox"
           checked={classroom.showScores}
-          onChange={(e) => updateSettings(CLASS_ID, { showScores: e.target.checked })}
+          onChange={(e) => updateSettings(classId, { showScores: e.target.checked })}
           className="mt-1 h-5 w-5 shrink-0 accent-[#f4c452]"
         />
       </section>
@@ -127,15 +227,19 @@ export default function Teacher() {
       </section>
 
       <section className="rounded-2xl border border-line p-5">
-        <h2 className="cw-heading text-base text-white">Demo data</h2>
-        <p className="mb-3 mt-1 text-sm text-muted">Puts the demo class back to its starting students and points.</p>
+        <h2 className="cw-heading text-base text-white">Delete this class</h2>
+        <p className="mb-3 mt-1 text-sm text-muted">Permanently removes the class, its students and all their points.</p>
         <button
-          onClick={() => confirm("Reset the demo class and all its points?") && resetClass(CLASS_ID)}
+          onClick={async () => {
+            if (!confirm(`Delete ${classroom.name}, its students and all their points? This can't be undone.`)) return;
+            await deleteClass(classId);
+            await onDeleted();
+          }}
           className="rounded-xl border border-red-300/30 px-4 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-400/10"
         >
-          Reset demo class
+          Delete class
         </button>
       </section>
-    </main>
+    </>
   );
 }
